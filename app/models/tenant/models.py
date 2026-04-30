@@ -10,6 +10,63 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.core.database import Base
 
+class GrantStatus(str, enum.Enum):
+    DRAFT      = "DRAFT"
+    PUBLISHED  = "PUBLISHED"
+    CLOSED     = "CLOSED"
+    EVALUATION = "EVALUATION"
+    FINALIZED  = "FINALIZED"
+    ARCHIVED   = "ARCHIVED"
+
+
+class ApplicantType(str, enum.Enum):
+    ANY          = "ANY"
+    STUDENT      = "STUDENT"
+    INDIVIDUAL   = "INDIVIDUAL"
+    BUSINESS     = "BUSINESS"
+    ORGANIZATION = "ORGANIZATION"
+
+
+class ApplicationStatus(str, enum.Enum):
+    DRAFT        = "DRAFT"
+    SUBMITTED    = "SUBMITTED"
+    UNDER_REVIEW = "UNDER_REVIEW"
+    APPROVED     = "APPROVED"
+    REJECTED     = "REJECTED"
+
+
+class QuestionType(str, enum.Enum):
+    TEXT      = "TEXT"
+    LONG_TEXT = "LONG_TEXT"
+    NUMBER    = "NUMBER"
+    FILE      = "FILE"
+    YES_NO    = "YES_NO"
+
+
+class NotificationType(str, enum.Enum):
+    APPLICATION_STATUS = "APPLICATION_STATUS"
+    DEADLINE           = "DEADLINE"
+    INVITE             = "INVITE"
+    SYSTEM             = "SYSTEM"
+
+
+class EmailStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    SENT    = "SENT"
+    FAILED  = "FAILED"
+
+class UserRole(Base):
+    __tablename__  = "user_roles"
+    __table_args__ = (
+        UniqueConstraint("user_id", "role_id", name="uq_user_role"),
+        {"schema": "tenant"}
+    )
+
+    id         = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id    = Column(UUID(as_uuid=True), ForeignKey("public.users.id", ondelete="CASCADE"), nullable=False)
+    role_id    = Column(UUID(as_uuid=True), ForeignKey("public.roles.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
 class Grant(Base):
     __tablename__  = "grants"
     __table_args__ = {"schema": "tenant"}
@@ -133,3 +190,165 @@ class Attachment(Base):
     size_bytes     = Column(Integer,     nullable=True)
     uploaded_at    = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
+
+class AIScore(Base):
+    __tablename__  = "ai_scores"
+    __table_args__ = (
+        UniqueConstraint("application_id", name="uq_ai_score_application"),
+        {"schema": "tenant"}
+    )
+
+    id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    application_id = Column(UUID(as_uuid=True), ForeignKey("tenant.applications.id", ondelete="CASCADE"), nullable=False)
+    ai_score       = Column(Integer,       nullable=True)
+    justification  = Column(Text,          nullable=True)
+    final_score    = Column(Numeric(5, 2), nullable=True)
+    rank_position  = Column(Integer,       nullable=True)
+    model_used     = Column(String(100),   nullable=True)
+    is_cached      = Column(Boolean, default=False, nullable=False)
+    scored_at      = Column(DateTime(timezone=True), nullable=True)
+    created_at     = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at     = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+                            onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class CommissionerScore(Base):
+    __tablename__  = "commissioner_scores"
+    __table_args__ = (
+        UniqueConstraint("application_id", "criteria_id", name="uq_commissioner_score"),
+        {"schema": "tenant"}
+    )
+
+    id              = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    application_id  = Column(UUID(as_uuid=True), ForeignKey("tenant.applications.id", ondelete="CASCADE"), nullable=False)
+    commissioner_id = Column(UUID(as_uuid=True), ForeignKey("public.users.id"),        nullable=False)
+    criteria_id     = Column(UUID(as_uuid=True), ForeignKey("tenant.criteria.id",      ondelete="CASCADE"), nullable=False)
+    score           = Column(Integer, nullable=False)
+    comment         = Column(Text,    nullable=True)
+    created_at      = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at      = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+                             onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class CommissionerDecision(Base):
+    __tablename__  = "commissioner_decisions"
+    __table_args__ = (
+        UniqueConstraint("application_id", name="uq_decision_application"),
+        {"schema": "tenant"}
+    )
+
+    id              = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    application_id  = Column(UUID(as_uuid=True), ForeignKey("tenant.applications.id", ondelete="CASCADE"), nullable=False)
+    commissioner_id = Column(UUID(as_uuid=True), ForeignKey("public.users.id"),        nullable=False)
+    decision        = Column(String(20), nullable=False)
+    reason          = Column(Text,       nullable=True)
+    decided_at      = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class Committee(Base):
+    __tablename__  = "committees"
+    __table_args__ = {"schema": "tenant"}
+
+    id         = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    grant_id   = Column(UUID(as_uuid=True), ForeignKey("tenant.grants.id", ondelete="CASCADE"), nullable=False)
+    name       = Column(String(200), nullable=False)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("public.users.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class CommitteeMember(Base):
+    __tablename__  = "committee_members"
+    __table_args__ = (
+        UniqueConstraint("committee_id", "user_id", name="uq_committee_member"),
+        {"schema": "tenant"}
+    )
+
+    id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    committee_id = Column(UUID(as_uuid=True), ForeignKey("tenant.committees.id", ondelete="CASCADE"), nullable=False)
+    user_id      = Column(UUID(as_uuid=True), ForeignKey("public.users.id",      ondelete="CASCADE"), nullable=False)
+    joined_at    = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class Invitation(Base):
+    __tablename__  = "invitations"
+    __table_args__ = {"schema": "tenant"}
+
+    id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email       = Column(String(200), nullable=False)
+    role_id     = Column(UUID(as_uuid=True), ForeignKey("public.roles.id"), nullable=False)
+    invited_by  = Column(UUID(as_uuid=True), ForeignKey("public.users.id"), nullable=False)
+    token       = Column(String(200), unique=True, nullable=False)
+    expires_at  = Column(DateTime(timezone=True), nullable=False)
+    is_used     = Column(Boolean, default=False, nullable=False)
+    accepted_at = Column(DateTime(timezone=True), nullable=True)
+    accepted_by = Column(UUID(as_uuid=True), ForeignKey("public.users.id"), nullable=True)
+    created_at  = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class Notification(Base):
+    __tablename__  = "notifications"
+    __table_args__ = {"schema": "tenant"}
+
+    id         = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id    = Column(UUID(as_uuid=True), ForeignKey("public.users.id", ondelete="CASCADE"), nullable=False)
+    title      = Column(String(200), nullable=False)
+    message    = Column(Text,        nullable=False)
+    type       = Column(SAEnum(NotificationType), nullable=False)
+    is_read    = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class EmailLog(Base):
+    __tablename__  = "email_logs"
+    __table_args__ = {"schema": "tenant"}
+
+    id         = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    to_email   = Column(String(200), nullable=False)
+    subject    = Column(String(300), nullable=False)
+    body       = Column(Text,        nullable=True)
+    status     = Column(SAEnum(EmailStatus), default=EmailStatus.PENDING, nullable=False)
+    sent_at    = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class AuditLog(Base):
+    __tablename__  = "audit_logs"
+    __table_args__ = {"schema": "tenant"}
+
+    id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id     = Column(UUID(as_uuid=True), ForeignKey("public.users.id"), nullable=True)
+    action      = Column(String(100), nullable=False)
+    resource    = Column(String(100), nullable=False)
+    resource_id = Column(UUID(as_uuid=True), nullable=True)
+    old_value   = Column(JSONB, nullable=True)
+    new_value   = Column(JSONB, nullable=True)
+    ip_address  = Column(String(50),  nullable=True)
+    created_at  = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class GrantRecommendation(Base):
+    __tablename__  = "grant_recommendations"
+    __table_args__ = (
+        UniqueConstraint("user_id", "grant_id", name="uq_user_grant_recommendation"),
+        {"schema": "tenant"}
+    )
+
+    id         = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id    = Column(UUID(as_uuid=True), ForeignKey("public.users.id",  ondelete="CASCADE"), nullable=False)
+    grant_id   = Column(UUID(as_uuid=True), ForeignKey("tenant.grants.id", ondelete="CASCADE"), nullable=False)
+    score      = Column(Numeric(5, 2), nullable=False)
+    reason     = Column(Text,          nullable=True)
+    model_used = Column(String(100),   nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class ApplicationStatusUpdate(Base):
+    __tablename__  = "application_status_updates"
+    __table_args__ = {"schema": "tenant"}
+
+    id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    application_id = Column(UUID(as_uuid=True), ForeignKey("tenant.applications.id", ondelete="CASCADE"), nullable=False)
+    old_status     = Column(String(50), nullable=False)
+    new_status     = Column(String(50), nullable=False)
+    changed_by     = Column(UUID(as_uuid=True), ForeignKey("public.users.id"), nullable=False)
+    changed_at     = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
