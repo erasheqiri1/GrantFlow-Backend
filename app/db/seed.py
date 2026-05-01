@@ -6,48 +6,61 @@ PERMISSIONS = [
     {"codename": "tenants:approve",       "resource": "tenants",      "action": "approve"},
     {"codename": "tenants:reject",        "resource": "tenants",      "action": "reject"},
     {"codename": "tenants:read",          "resource": "tenants",      "action": "read"},
+    {"codename": "tenants:deactivate", "resource": "tenants", "action": "deactivate"},
+
     {"codename": "users:read",            "resource": "users",        "action": "read"},
     {"codename": "users:deactivate",      "resource": "users",        "action": "deactivate"},
     {"codename": "users:assign_role",     "resource": "users",        "action": "assign_role"},
-    {"codename": "users:reset_password",  "resource": "users",        "action": "reset_password"},
+
     {"codename": "grants:create",         "resource": "grants",       "action": "create"},
     {"codename": "grants:read",           "resource": "grants",       "action": "read"},
     {"codename": "grants:update",         "resource": "grants",       "action": "update"},
     {"codename": "grants:publish",        "resource": "grants",       "action": "publish"},
     {"codename": "grants:close",          "resource": "grants",       "action": "close"},
+
     {"codename": "applications:submit",   "resource": "applications", "action": "submit"},
     {"codename": "applications:read_own", "resource": "applications", "action": "read_own"},
     {"codename": "applications:read_all", "resource": "applications", "action": "read_all"},
     {"codename": "applications:approve",  "resource": "applications", "action": "approve"},
     {"codename": "applications:reject",   "resource": "applications", "action": "reject"},
-    {"codename": "ai_scores:read",        "resource": "ai_scores",    "action": "read"},
+
     {"codename": "invitations:send",      "resource": "invitations",  "action": "send"},
-    {"codename": "committees:manage",     "resource": "committees",   "action": "manage"},
-    {"codename": "audit_logs:read",       "resource": "audit_logs",   "action": "read"},
-    {"codename": "commissioner:score",    "resource": "commissioner", "action": "score"},
-    {"codename": "commissioner:decide",   "resource": "commissioner", "action": "decide"},
 ]
 
 ROLE_PERMISSIONS = {
-    RoleName.SUPER_ADMIN: [p["codename"] for p in PERMISSIONS],
-    RoleName.ORG_ADMIN: [
-        "grants:create", "grants:read", "grants:update",
-        "grants:publish", "grants:close",
-        "applications:read_all",
-        "users:assign_role", "users:reset_password",
-        "invitations:send", "committees:manage",
-        "audit_logs:read",
+    RoleName.SUPER_ADMIN: [
+        "tenants:approve",
+        "tenants:reject",
+        "tenants:read",
+        "tenants:deactivate",
+        "users:read",
+        "users:assign_role",
     ],
+
+    RoleName.ORG_ADMIN: [
+        "grants:create",
+        "grants:read",
+        "grants:update",
+        "grants:publish",
+        "grants:close",
+        "applications:read_all",
+        "users:assign_role",
+        "users:deactivate",
+        "users:read",
+        "invitations:send",
+    ],
+
     RoleName.COMMISSIONER: [
         "grants:read",
         "applications:read_all",
-        "applications:approve", "applications:reject",
-        "ai_scores:read",
-        "commissioner:score", "commissioner:decide",
+        "applications:approve",
+        "applications:reject",
     ],
+
     RoleName.APPLICANT: [
         "grants:read",
-        "applications:submit", "applications:read_own",
+        "applications:submit",
+        "applications:read_own",
     ],
 }
 
@@ -66,7 +79,7 @@ def seed(db: Session) -> None:
     for rn in RoleName:
         obj = db.query(Role).filter_by(name=rn).first()
         if not obj:
-            obj = Role(id=uuid.uuid4(), name=rn, description=f"Roli {rn.value}")
+            obj = Role(id=uuid.uuid4(), name=rn)
             db.add(obj)
             db.flush()
         role_map[rn] = obj
@@ -87,7 +100,7 @@ def seed(db: Session) -> None:
                     permission_id=perm.id
                 ))
     db.commit()
-    print("Rolet dhe lejet u shtuan.")
+    print("Role and permission have been added")
 
 
 if __name__ == "__main__":

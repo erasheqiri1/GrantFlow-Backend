@@ -14,17 +14,13 @@ class GrantStatus(str, enum.Enum):
     DRAFT      = "DRAFT"
     PUBLISHED  = "PUBLISHED"
     CLOSED     = "CLOSED"
-    EVALUATION = "EVALUATION"
-    FINALIZED  = "FINALIZED"
-    ARCHIVED   = "ARCHIVED"
-
 
 class ApplicantType(str, enum.Enum):
     ANY          = "ANY"
     STUDENT      = "STUDENT"
-    INDIVIDUAL   = "INDIVIDUAL"
     BUSINESS     = "BUSINESS"
     ORGANIZATION = "ORGANIZATION"
+    INDIVIDUAL   = "INDIVIDUAL"
 
 
 class ApplicationStatus(str, enum.Enum):
@@ -34,7 +30,7 @@ class ApplicationStatus(str, enum.Enum):
     APPROVED     = "APPROVED"
     REJECTED     = "REJECTED"
 
-
+#forma qe munet org_admini te +kritere
 class QuestionType(str, enum.Enum):
     TEXT      = "TEXT"
     LONG_TEXT = "LONG_TEXT"
@@ -42,18 +38,21 @@ class QuestionType(str, enum.Enum):
     FILE      = "FILE"
     YES_NO    = "YES_NO"
 
-
 class NotificationType(str, enum.Enum):
     APPLICATION_STATUS = "APPLICATION_STATUS"
     DEADLINE           = "DEADLINE"
     INVITE             = "INVITE"
     SYSTEM             = "SYSTEM"
 
-
 class EmailStatus(str, enum.Enum):
     PENDING = "PENDING"
     SENT    = "SENT"
     FAILED  = "FAILED"
+
+class DecisionType(str, enum.Enum):
+        APPROVE = "APPROVE"
+        REJECT = "REJECT"
+
 
 class UserRole(Base):
     __tablename__  = "user_roles"
@@ -76,11 +75,12 @@ class Grant(Base):
     description    = Column(Text,           nullable=True)
     budget         = Column(Numeric(12, 2), nullable=True)
     currency       = Column(String(10),     default="EUR", nullable=False)
+    grant_value    = Column(Numeric(12, 2), nullable=True)
     deadline       = Column(DateTime(timezone=True), nullable=True)
     max_applicants = Column(Integer,        nullable=True)
     status         = Column(SAEnum(GrantStatus),   default=GrantStatus.DRAFT,  nullable=False)
     applicant_type = Column(SAEnum(ApplicantType), default=ApplicantType.ANY,  nullable=False)
-    ai_weight      = Column(Numeric(3, 2),  default=0.60, nullable=False)
+    ai_weight      = Column(Numeric(5,2), default=0.60, nullable=False)
     created_by     = Column(UUID(as_uuid=True), ForeignKey("public.users.id"), nullable=False)
     created_at     = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at     = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
@@ -97,8 +97,7 @@ class Criteria(Base):
     id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     grant_id    = Column(UUID(as_uuid=True), ForeignKey("tenant.grants.id", ondelete="CASCADE"), nullable=False)
     name        = Column(String(100),   nullable=False)
-    description = Column(Text,          nullable=True)
-    weight      = Column(Numeric(3, 2), nullable=False)
+    weight      = Column(Numeric(5, 2), nullable=False)
     min_value   = Column(Numeric(5, 2), nullable=True)
     is_required = Column(Boolean,       default=True, nullable=False)
 
@@ -113,7 +112,6 @@ class GrantTag(Base):
     id       = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     grant_id = Column(UUID(as_uuid=True), ForeignKey("tenant.grants.id", ondelete="CASCADE"), nullable=False)
     tag      = Column(String(50), nullable=False)
-
 
 class ApplicationQuestion(Base):
     __tablename__  = "application_questions"
@@ -174,9 +172,8 @@ class CV(Base):
     application_id = Column(UUID(as_uuid=True), ForeignKey("tenant.applications.id", ondelete="CASCADE"), nullable=False)
     file_path      = Column(String(500), nullable=False)
     file_name      = Column(String(200), nullable=False)
-    parsed_text    = Column(Text,        nullable=True)
+    parsed_text    = Column(Text,        nullable=True)  # text i nxjerr qe AI ta lexoj
     uploaded_at    = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
-
 
 class Attachment(Base):
     __tablename__  = "attachments"
@@ -200,7 +197,7 @@ class AIScore(Base):
 
     id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     application_id = Column(UUID(as_uuid=True), ForeignKey("tenant.applications.id", ondelete="CASCADE"), nullable=False)
-    ai_score       = Column(Integer,       nullable=True)
+    ai_score       = Column(Numeric(5, 2), nullable=True)
     justification  = Column(Text,          nullable=True)
     final_score    = Column(Numeric(5, 2), nullable=True)
     rank_position  = Column(Integer,       nullable=True)
@@ -240,33 +237,25 @@ class CommissionerDecision(Base):
     id              = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     application_id  = Column(UUID(as_uuid=True), ForeignKey("tenant.applications.id", ondelete="CASCADE"), nullable=False)
     commissioner_id = Column(UUID(as_uuid=True), ForeignKey("public.users.id"),        nullable=False)
-    decision        = Column(String(20), nullable=False)
+    decision        = Column(SAEnum(DecisionType), nullable=False)
     reason          = Column(Text,       nullable=True)
     decided_at      = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
-
-class Committee(Base):
-    __tablename__  = "committees"
-    __table_args__ = {"schema": "tenant"}
-
-    id         = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    grant_id   = Column(UUID(as_uuid=True), ForeignKey("tenant.grants.id", ondelete="CASCADE"), nullable=False)
-    name       = Column(String(200), nullable=False)
-    created_by = Column(UUID(as_uuid=True), ForeignKey("public.users.id"), nullable=False)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
-
-
-class CommitteeMember(Base):
-    __tablename__  = "committee_members"
+#qikjo osht per me i shpernda ne menyre automatike kontrollin e aplikmeve tek komisioneret
+class CommissionerWorkload(Base):
+    __tablename__  = "commissioner_workload"
     __table_args__ = (
-        UniqueConstraint("committee_id", "user_id", name="uq_committee_member"),
+        UniqueConstraint("commissioner_id", name="uq_commissioner_workload"),
         {"schema": "tenant"}
     )
 
-    id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    committee_id = Column(UUID(as_uuid=True), ForeignKey("tenant.committees.id", ondelete="CASCADE"), nullable=False)
-    user_id      = Column(UUID(as_uuid=True), ForeignKey("public.users.id",      ondelete="CASCADE"), nullable=False)
-    joined_at    = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    id              = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    commissioner_id = Column(UUID(as_uuid=True), ForeignKey("public.users.id",
+                             ondelete="CASCADE"), nullable=False)
+    assigned_count  = Column(Integer, default=0, nullable=False)
+    completed_count = Column(Integer, default=0, nullable=False)
+    updated_at      = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+                             onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class Invitation(Base):
@@ -310,45 +299,13 @@ class EmailLog(Base):
     sent_at    = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
-
-class AuditLog(Base):
-    __tablename__  = "audit_logs"
-    __table_args__ = {"schema": "tenant"}
-
-    id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id     = Column(UUID(as_uuid=True), ForeignKey("public.users.id"), nullable=True)
-    action      = Column(String(100), nullable=False)
-    resource    = Column(String(100), nullable=False)
-    resource_id = Column(UUID(as_uuid=True), nullable=True)
-    old_value   = Column(JSONB, nullable=True)
-    new_value   = Column(JSONB, nullable=True)
-    ip_address  = Column(String(50),  nullable=True)
-    created_at  = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
-
-
-class GrantRecommendation(Base):
-    __tablename__  = "grant_recommendations"
-    __table_args__ = (
-        UniqueConstraint("user_id", "grant_id", name="uq_user_grant_recommendation"),
-        {"schema": "tenant"}
-    )
-
-    id         = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id    = Column(UUID(as_uuid=True), ForeignKey("public.users.id",  ondelete="CASCADE"), nullable=False)
-    grant_id   = Column(UUID(as_uuid=True), ForeignKey("tenant.grants.id", ondelete="CASCADE"), nullable=False)
-    score      = Column(Numeric(5, 2), nullable=False)
-    reason     = Column(Text,          nullable=True)
-    model_used = Column(String(100),   nullable=True)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
-
-
 class ApplicationStatusUpdate(Base):
     __tablename__  = "application_status_updates"
     __table_args__ = {"schema": "tenant"}
 
     id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     application_id = Column(UUID(as_uuid=True), ForeignKey("tenant.applications.id", ondelete="CASCADE"), nullable=False)
-    old_status     = Column(String(50), nullable=False)
-    new_status     = Column(String(50), nullable=False)
+    old_status = Column(SAEnum(ApplicationStatus), nullable=False)
+    new_status = Column(SAEnum(ApplicationStatus), nullable=False)
     changed_by     = Column(UUID(as_uuid=True), ForeignKey("public.users.id"), nullable=False)
     changed_at     = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
