@@ -23,6 +23,12 @@ class RoleName(str, enum.Enum):
     COMMISSIONER = "COMMISSIONER"
     APPLICANT    = "APPLICANT"
 
+class ApplicantType(str, enum.Enum):
+    STUDENT      = "STUDENT"
+    BUSINESS     = "BUSINESS"
+    ORGANIZATION = "ORGANIZATION"
+    INDIVIDUAL   = "INDIVIDUAL"
+    OTHER        = "OTHER"
 
 class Tenant(Base):
     __tablename__  = "tenants"
@@ -35,7 +41,9 @@ class Tenant(Base):
     email      = Column(String(200), nullable=False)
     nipt       = Column(String(50),  nullable=True)
     doc_path   = Column(String(500), nullable=True)
-    website    = Column(String(300), nullable=True)
+    logo_path = Column(String(500), nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(
         DateTime(timezone=True),
@@ -63,42 +71,75 @@ class User(Base):
         nullable=False
     )
 
-
 class UserProfile(Base):
     __tablename__  = "user_profiles"
     __table_args__ = {"schema": "public"}
 
+    id              = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id         = Column(UUID(as_uuid=True), ForeignKey("public.users.id",
+                             ondelete="CASCADE"), unique=True, nullable=False)
+    phone           = Column(String(50),  nullable=True)
+    profile_picture = Column(String(500), nullable=True)
+    address         = Column(String(300), nullable=True)
+    created_at      = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at      = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+                             onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class ApplicantProfile(Base):
+    __tablename__  = "applicant_profiles"
+    __table_args__ = {"schema": "public"}
+    #te perbashketat
     id                  = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id             = Column(
-        UUID(as_uuid=True),
-        ForeignKey("public.users.id", ondelete="CASCADE"),
-        unique=True,
-        nullable=False
-    )
-    bio                 = Column(Text,        nullable=True)
-    profile_picture     = Column(String(500), nullable=True)
-    phone               = Column(String(50),  nullable=True)
-    country             = Column(String(100), nullable=True)
-    city                = Column(String(100), nullable=True)
-    applicant_type      = Column(String(50),  nullable=True)
+    user_id             = Column(UUID(as_uuid=True), ForeignKey("public.users.id",
+                                 ondelete="CASCADE"), unique=True, nullable=False)
+    applicant_type     = Column(SAEnum(ApplicantType), nullable=True)
+    has_prev_grant      = Column(Boolean, nullable=True)
+    description         = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+
+    #per student
+    study_level         = Column(String(50),  nullable=True)
+    study_status        = Column(String(50),  nullable=True)
+    study_year          = Column(Integer,     nullable=True)
+    faculty             = Column(String(200), nullable=True)
+    study_program       = Column(String(200), nullable=True)
     university          = Column(String(200), nullable=True)
-    field_of_study      = Column(String(200), nullable=True)
-    graduation_year     = Column(Integer,     nullable=True)
-    organization_name   = Column(String(200), nullable=True)
-    organization_number = Column(String(100), nullable=True)
-    skills              = Column(Text,        nullable=True)
-    education           = Column(Text,        nullable=True)
-    experience          = Column(Text,        nullable=True)
-    linkedin_url        = Column(String(300), nullable=True)
+
+
+    #per biznes
+    business_name       = Column(String(200), nullable=True)
+    business_type       = Column(String(100), nullable=True)
+    activity_field      = Column(String(200), nullable=True)
+    num_employees       = Column(String(50),  nullable=True)
+    founded_year        = Column(Integer,     nullable=True)
+
+
+    #per ojq
+    org_name            = Column(String(200), nullable=True)
+    org_type            = Column(String(100), nullable=True)
+    org_field           = Column(String(200), nullable=True)
+    num_staff           = Column(String(50),  nullable=True)
+    org_founded_year    = Column(Integer,     nullable=True)
+    reg_number          = Column(String(100), nullable=True)
+
+
+    # per individ ( per njerez me pune)
+    profession          = Column(String(200), nullable=True)
+    experience_years    = Column(String(50),  nullable=True)
+    key_skills          = Column(Text,        nullable=True)
     portfolio_url       = Column(String(300), nullable=True)
-    website_url         = Column(String(300), nullable=True)
-    created_at          = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at          = Column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
-        nullable=False
-    )
+    cv_path             = Column(String(500), nullable=True)
+
+
+    #qe nuk i perkasin asnje kategorie-tjeter
+    role_title          = Column(String(200), nullable=True)
+    interest_field      = Column(String(200), nullable=True)
+    relevant_link       = Column(String(300), nullable=True)
 
 
 class PasswordResetToken(Base):
@@ -112,6 +153,7 @@ class PasswordResetToken(Base):
     is_used    = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
+#qikjo eshte implementimi i RBAC
 
 class Role(Base):
     __tablename__  = "roles"
@@ -119,8 +161,6 @@ class Role(Base):
 
     id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name        = Column(SAEnum(RoleName), unique=True, nullable=False)
-    description = Column(String(200), nullable=True)
-
 
 class Permission(Base):
     __tablename__  = "permissions"
