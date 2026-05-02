@@ -12,7 +12,7 @@ env/
 .venv/
 ENV/
 
-# Environment variables - KRITIKE, kurrë në GitHub
+# Environment variables
 .env
 *.env
 
