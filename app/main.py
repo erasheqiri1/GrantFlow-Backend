@@ -3,6 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 middleware
 from app.middleware.auth import AuthMiddleware
 from app.middleware.tenant import TenantMiddleware
+from app.routers import auth
+
+
 
 app = FastAPI(
     title="GrantFlow API",
@@ -32,6 +35,7 @@ middleware
 
 app.add_middleware(TenantMiddleware)
 app.add_middleware(AuthMiddleware)
+app.include_router(auth.router)
 
 #testim
 
