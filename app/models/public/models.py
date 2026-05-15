@@ -182,3 +182,16 @@ class RolePermission(Base):
     id            = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     role_id       = Column(UUID(as_uuid=True), ForeignKey("public.roles.id", ondelete="CASCADE"), nullable=False)
     permission_id = Column(UUID(as_uuid=True), ForeignKey("public.permissions.id", ondelete="CASCADE"), nullable=False)
+
+class UserRole(Base):
+        __tablename__ = "user_roles"
+        __table_args__ = (
+            UniqueConstraint("user_id", "role_id", "tenant_id", name="uq_user_role_tenant"),
+            {"schema": "public"}
+        )
+
+        id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+        user_id = Column(UUID(as_uuid=True), ForeignKey("public.users.id", ondelete="CASCADE"), nullable=False)
+        role_id = Column(UUID(as_uuid=True), ForeignKey("public.roles.id", ondelete="CASCADE"), nullable=False)
+        tenant_id = Column(UUID(as_uuid=True), ForeignKey("public.tenants.id", ondelete="CASCADE"), nullable=True)
+        created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)

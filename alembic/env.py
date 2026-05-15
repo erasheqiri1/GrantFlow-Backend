@@ -3,27 +3,18 @@ import os
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool, text
 from alembic import context
-from dotenv import load_dotenv
-
-load_dotenv()
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from app.core.config import settings
 from app.core.database import Base
 from app.models.public.models import (
     Tenant, User, UserProfile, ApplicantProfile,
-    PasswordResetToken, Role, Permission, RolePermission,
-)
-from app.models.tenant.models import (
-    UserRole, Grant, Criteria, GrantTag,
-    ApplicationQuestion, Application, ApplicationAnswer,
-    CV, Attachment, AIScore,
-    CommissionerScore, CommissionerDecision, CommissionerWorkload,
-    Invitation, Notification, EmailLog, ApplicationStatusUpdate,
+    PasswordResetToken, Role, Permission, RolePermission, UserRole
 )
 
 config = context.config
-config.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL"))
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -34,15 +25,10 @@ target_metadata = Base.metadata
 def include_object(object, name, type_, reflected, compare_to):
     if type_ == "table":
         schema = getattr(object, "schema", None)
-
-
         if name == "alembic_version":
             return False
-
-
         if schema == "tenant":
             return False
-
     return True
 
 
