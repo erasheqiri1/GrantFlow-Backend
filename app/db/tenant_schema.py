@@ -219,18 +219,25 @@ def create_tenant_schema(db: Session, tenant_slug: str) -> None:
     Krijon schemën dhe 17 tabelat për tenant të ri.
     Thirret kur SUPER_ADMIN aprovo organizatën.
     """
-    db.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{tenant_slug}"'))
-    sql = TENANT_TABLES_SQL.replace('"{schema}"', f'"{tenant_slug}"')
-    db.execute(text(sql))
+    schema_name = f"tenant_{tenant_slug.replace('-', '_')}"
+    db.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema_name}"'))
     db.commit()
-    print(f"✓ Schema '{tenant_slug}' u krijua me 17 tabela.")
+
+    sql = TENANT_TABLES_SQL.replace('"{schema}"', f'"{schema_name}"')
+    statements = [s.strip() for s in sql.split(";") if s.strip()]
+    for stmt in statements:
+        db.execute(text(stmt))
+        db.commit()
+
+    print(f"✓ Schema '{schema_name}' u krijua me {len(statements)} tabela.")
 
 
 def drop_tenant_schema(db: Session, tenant_slug: str) -> None:
     """Fshin schemën — vetëm për test/dev."""
-    db.execute(text(f'DROP SCHEMA IF EXISTS "{tenant_slug}" CASCADE'))
+    schema_name = f"tenant_{tenant_slug.replace('-', '_')}"
+    db.execute(text(f'DROP SCHEMA IF EXISTS "{schema_name}" CASCADE'))
     db.commit()
-    print(f"✓ Schema '{tenant_slug}' u fshi.")
+    print(f"✓ Schema '{schema_name}' u fshi.")
 
 
 def set_tenant_search_path(db: Session, tenant_slug: str) -> None:

@@ -30,7 +30,8 @@ def get_tenant_db(request: Request):
     db = SessionLocal()
     try:
         if tenant_slug:
-            db.execute(text(f'SET search_path TO "{tenant_slug}", public'))
+            schema_name = f"tenant_{tenant_slug.replace('-', '_')}"
+            db.execute(text(f'SET search_path TO "{schema_name}", public'))
         yield db
     finally:
         db.close()
