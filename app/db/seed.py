@@ -1,6 +1,8 @@
 import uuid
+import bcrypt
 from sqlalchemy.orm import Session
-from app.models.public.models import Role, Permission, RolePermission, RoleName
+from app.models.public.models import Role, Permission, RolePermission, RoleName, User, UserRole
+from app.core.config import settings
 
 PERMISSIONS = [
     {"codename": "tenants:approve",       "resource": "tenants",      "action": "approve"},
@@ -100,7 +102,30 @@ def seed(db: Session) -> None:
                     permission_id=perm.id
                 ))
     db.commit()
-    print("Role and permission have been added")
+    print("Roles and permissions seeded.")
+
+    # krijon Super Admin nëse nuk ekziston
+    super_admin_email = settings.SUPER_ADMIN_EMAIL
+    existing = db.query(User).filter_by(email=super_admin_email).first()
+    if not existing:
+        password_hash = bcrypt.hashpw(settings.SUPER_ADMIN_PASSWORD.encode(), bcrypt.gensalt()).decode()
+        admin = User(
+            id=uuid.uuid4(),
+            email=super_admin_email,
+            password_hash=password_hash,
+            first_name="Super",
+            last_name="Admin",
+            is_active=True,
+        )
+        db.add(admin)
+        db.flush()
+
+        role = db.query(Role).filter_by(name=RoleName.SUPER_ADMIN).first()
+        db.add(UserRole(id=uuid.uuid4(), user_id=admin.id, role_id=role.id, tenant_id=None))
+        db.commit()
+        print(f"Super Admin krijuar: {super_admin_email}")
+    else:
+        print("Super Admin ekziston tashmë.")
 
 
 if __name__ == "__main__":
