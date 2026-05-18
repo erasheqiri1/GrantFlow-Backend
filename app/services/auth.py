@@ -35,7 +35,7 @@ def verify_password(password: str, hashed: str) -> bool:
 
 def create_token(user_id: str, role: str, tenant_slug: str | None) -> str:
     payload = {
-        "sub": str(user_id),
+        "user_id": str(user_id),
         "role": role,
         "tenant_slug": tenant_slug,
         "exp": datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),

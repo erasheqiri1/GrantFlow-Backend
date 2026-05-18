@@ -1,17 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBearer
 from app.middleware.auth import AuthMiddleware
 from app.middleware.tenant import TenantMiddleware
-from app.routers import auth
-
-security = HTTPBearer()
+from app.routers import auth, profile
 
 app = FastAPI(
     title="GrantFlow API",
     description="Platformë SaaS për menaxhimin e granteve",
     version="1.0.0",
-    swagger_ui_parameters={"persistAuthorization": True},
 )
 
 app.add_middleware(
@@ -26,6 +22,7 @@ app.add_middleware(TenantMiddleware)
 app.add_middleware(AuthMiddleware)
 
 app.include_router(auth.router)
+app.include_router(profile.router)
 
 @app.get("/", tags=["Health"])
 def root():
