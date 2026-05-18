@@ -42,7 +42,7 @@ class Tenant(Base):
     nipt       = Column(String(50),  nullable=True)
     doc_path   = Column(String(500), nullable=True)
     logo_path = Column(String(500), nullable=True)
-    is_active = Column(Boolean, default=True, nullable=False)
+    is_active = Column(Boolean, default=False, nullable=False)
 
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(
