@@ -1,0 +1,60 @@
+from pydantic import BaseModel
+from typing import Optional
+from datetime import datetime
+from enum import Enum
+from uuid import UUID
+
+
+class GrantStatusEnum(str, Enum):
+    DRAFT     = "DRAFT"
+    PUBLISHED = "PUBLISHED"
+    CLOSED    = "CLOSED"
+
+
+class ApplicantTypeEnum(str, Enum):
+    ANY          = "ANY"
+    STUDENT      = "STUDENT"
+    BUSINESS     = "BUSINESS"
+    ORGANIZATION = "ORGANIZATION"
+    INDIVIDUAL   = "INDIVIDUAL"
+
+
+class GrantCreate(BaseModel):
+    title:          str
+    description:    Optional[str]   = None
+    budget:         Optional[float] = None
+    currency:       Optional[str]   = "EUR"
+    grant_value:    Optional[float] = None
+    deadline:       Optional[datetime] = None
+    max_applicants: Optional[int]   = None
+    applicant_type: Optional[ApplicantTypeEnum] = ApplicantTypeEnum.ANY
+    ai_weight:      Optional[float] = 0.60
+
+
+class GrantUpdate(BaseModel):
+    title:          Optional[str]   = None
+    description:    Optional[str]   = None
+    budget:         Optional[float] = None
+    currency:       Optional[str]   = None
+    grant_value:    Optional[float] = None
+    deadline:       Optional[datetime] = None
+    max_applicants: Optional[int]   = None
+    applicant_type: Optional[ApplicantTypeEnum] = None
+    ai_weight:      Optional[float] = None
+
+
+class GrantResponse(BaseModel):
+    id:             UUID
+    title:          str
+    description:    Optional[str]
+    budget:         Optional[float]
+    currency:       str
+    grant_value:    Optional[float]
+    deadline:       Optional[datetime]
+    max_applicants: Optional[int]
+    status:         GrantStatusEnum
+    applicant_type: ApplicantTypeEnum
+    ai_weight:      float
+    created_at:     datetime
+
+    model_config = {"from_attributes": True}

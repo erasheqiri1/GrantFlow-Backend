@@ -16,7 +16,6 @@ PUBLIC_PATHS = [
     "/auth/forgot-password",
     "/auth/reset-password",
     "/auth/invite/accept",
-    "/grants",
 ]
 
 
