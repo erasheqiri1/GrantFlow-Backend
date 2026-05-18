@@ -2,7 +2,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.middleware.auth import AuthMiddleware
 from app.middleware.tenant import TenantMiddleware
-from app.routers import auth, profile, tenants, grants
+
+from app.routers import auth, profile,tenants,users, grants
+
+
 
 app = FastAPI(
     title="GrantFlow API",
@@ -24,7 +27,11 @@ app.add_middleware(AuthMiddleware)
 app.include_router(auth.router)
 app.include_router(profile.router)
 app.include_router(tenants.router)
+
+app.include_router(users.router)
+
 app.include_router(grants.router)
+
 
 @app.get("/", tags=["Health"])
 def root():
