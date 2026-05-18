@@ -1,13 +1,18 @@
 
 from fastapi import Depends, HTTPException, Request
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.core.database import SessionLocal
 from app.models.public.models import User, Role, RolePermission, Permission
 
+bearer_scheme = HTTPBearer()
 
-def get_current_user(request: Request) -> dict:
 
+def get_current_user(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+) -> dict:
     user_id = getattr(request.state, "user_id", None)
     if not user_id:
         raise HTTPException(status_code=401, detail="Jo i autentikuar")

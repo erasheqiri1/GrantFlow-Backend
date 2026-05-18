@@ -43,3 +43,29 @@ logs/
 
 # Uploads (files të ngarkuara nga userët)
 uploads/
+
+# Distribution / Packaging
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Redis dump
+dump.rdb
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Coverage
+coverage.xml
+*.cover
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+
+# Secrets
+*.pem
+*.key
+secrets/

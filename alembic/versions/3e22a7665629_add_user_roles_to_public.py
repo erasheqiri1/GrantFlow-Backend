@@ -1,7 +1,7 @@
 """add user_roles to public
 
 Revision ID: 3e22a7665629
-Revises: 
+Revises: ef642ea726cd
 Create Date: 2026-05-15 21:54:33.332098
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '3e22a7665629'
-down_revision: Union[str, Sequence[str], None] = None
+down_revision: Union[str, Sequence[str], None] = 'ef642ea726cd'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

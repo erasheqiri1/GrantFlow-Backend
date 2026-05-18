@@ -27,7 +27,7 @@ def include_object(object, name, type_, reflected, compare_to):
         schema = getattr(object, "schema", None)
         if name == "alembic_version":
             return False
-        if schema == "tenant":
+        if schema and schema.startswith("tenant_"):
             return False
     return True
 

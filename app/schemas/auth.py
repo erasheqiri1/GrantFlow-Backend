@@ -1,3 +1,5 @@
+import re
+
 from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional
 
@@ -13,7 +15,13 @@ class RegisterRequest(BaseModel):
     @classmethod
     def password_strength(cls, v):
         if len(v) < 8:
-            raise ValueError("Fjalëkalimi duhet të ketë të paktën 8 karaktere")
+            raise ValueError("Minimum 8 karaktere")
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("Duhet të paktën 1 shkronjë e madhe")
+        if not re.search(r"[0-9]", v):
+            raise ValueError("Duhet të paktën 1 numër")
+        if not re.search(r"[!@#$%^&*]", v):
+            raise ValueError("Duhet të paktën 1 karakter special (!@#$%^&*)")
         return v
 
 
@@ -30,10 +38,15 @@ class RegisterOrgRequest(BaseModel):
     org_slug: str
 
     @field_validator("password")
-    @classmethod
     def password_strength(cls, v):
         if len(v) < 8:
-            raise ValueError("Fjalëkalimi duhet të ketë të paktën 8 karaktere")
+            raise ValueError("Minimum 8 karaktere")
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("Duhet të paktën 1 shkronjë e madhe")
+        if not re.search(r"[0-9]", v):
+            raise ValueError("Duhet të paktën 1 numër")
+        if not re.search(r"[!@#$%^&*]", v):
+            raise ValueError("Duhet të paktën 1 karakter special (!@#$%^&*)")
         return v
 
     @field_validator("org_slug")
@@ -74,7 +87,13 @@ class ResetPasswordRequest(BaseModel):
     @classmethod
     def password_strength(cls, v):
         if len(v) < 8:
-            raise ValueError("Fjalëkalimi duhet të ketë të paktën 8 karaktere")
+            raise ValueError("Minimum 8 karaktere")
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("Duhet të paktën 1 shkronjë e madhe")
+        if not re.search(r"[0-9]", v):
+            raise ValueError("Duhet të paktën 1 numër")
+        if not re.search(r"[!@#$%^&*]", v):
+            raise ValueError("Duhet të paktën 1 karakter special (!@#$%^&*)")
         return v
 
 
@@ -89,10 +108,20 @@ class InviteAcceptRequest(BaseModel):
     @classmethod
     def password_strength(cls, v):
         if len(v) < 8:
-            raise ValueError("Fjalëkalimi duhet të ketë të paktën 8 karaktere")
+            raise ValueError("Minimum 8 karaktere")
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("Duhet të paktën 1 shkronjë e madhe")
+        if not re.search(r"[0-9]", v):
+            raise ValueError("Duhet të paktën 1 numër")
+        if not re.search(r"[!@#$%^&*]", v):
+            raise ValueError("Duhet të paktën 1 karakter special (!@#$%^&*)")
         return v
 
 
+
+
+class MessageResponse(BaseModel):
+    message: str
 
 
 class UserResponse(BaseModel):
