@@ -9,7 +9,7 @@ from sqlalchemy import text
 from fastapi import HTTPException, status
 
 from app.core.config import settings
-from app.models.public.models import User, Tenant, Role, UserRole, PasswordResetToken, TenantStatus
+from app.models.public.models import User, Tenant, Role, UserRole, PasswordResetToken, TenantStatus, UserProfile, ApplicantProfile
 from app.schemas.auth import (
     RegisterRequest,
     RegisterOrgRequest,
@@ -51,7 +51,7 @@ def register_user(data: RegisterRequest, db: Session) -> TokenResponse:
     # kontrollo nëse ekziston email
     existing = db.query(User).filter(User.email == data.email).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Email ekziston tashmë")
+        raise HTTPException(status_code=409, detail="Email ekziston tashmë")
 
     try:
         user = User(
@@ -67,6 +67,10 @@ def register_user(data: RegisterRequest, db: Session) -> TokenResponse:
         role = db.query(Role).filter(Role.name == "APPLICANT").first()
         user_role = UserRole(user_id=user.id, role_id=role.id, tenant_id=None)
         db.add(user_role)
+
+        db.add(UserProfile(user_id=user.id))
+        db.add(ApplicantProfile(user_id=user.id))
+
         db.commit()
     except Exception:
         db.rollback()
@@ -84,12 +88,12 @@ def register_org(data: RegisterOrgRequest, db: Session) -> TokenResponse:
     # kontrollo slug
     existing_tenant = db.query(Tenant).filter(Tenant.slug == data.org_slug).first()
     if existing_tenant:
-        raise HTTPException(status_code=400, detail="Ky slug ekziston tashmë")
+        raise HTTPException(status_code=409, detail="Ky slug ekziston tashmë")
 
     # kontrollo email
     existing_user = db.query(User).filter(User.email == data.email).first()
     if existing_user:
-        raise HTTPException(status_code=400, detail="Email ekziston tashmë")
+        raise HTTPException(status_code=409, detail="Email ekziston tashmë")
 
     schema_name = f"tenant_{data.org_slug.replace('-', '_')}"
 
@@ -98,7 +102,8 @@ def register_org(data: RegisterOrgRequest, db: Session) -> TokenResponse:
             slug=data.org_slug,
             name=data.org_name,
             email=data.email,
-            is_active=True,
+            is_active=False,
+            status=TenantStatus.PENDING,
         )
         db.add(tenant)
         db.flush()
@@ -117,20 +122,12 @@ def register_org(data: RegisterOrgRequest, db: Session) -> TokenResponse:
         user_role = UserRole(user_id=user.id, role_id=role.id, tenant_id=tenant.id)
         db.add(user_role)
 
-        _create_tenant_schema(db, schema_name)
-
         db.commit()
     except Exception:
         db.rollback()
-        try:
-            db.execute(text(f'DROP SCHEMA IF EXISTS "{schema_name}" CASCADE'))
-            db.commit()
-        except Exception:
-            pass
         raise HTTPException(status_code=500, detail="Gabim gjatë regjistrimit të organizatës")
 
-    token = create_token(user.id, "ORG_ADMIN", data.org_slug)
-    return TokenResponse(access_token=token, role="ORG_ADMIN", tenant_slug=data.org_slug)
+    return {"message": "Organizata u regjistrua me sukses. Prisni aprovimin nga Super Admin."}
 
 
 def _create_tenant_schema(db: Session, schema_name: str):
@@ -138,14 +135,6 @@ def _create_tenant_schema(db: Session, schema_name: str):
     db.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema_name}"'))
 
     tables_sql = f"""
-    CREATE TABLE IF NOT EXISTS "{schema_name}".user_roles (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-        role_id UUID NOT NULL REFERENCES public.roles(id),
-        tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-        CONSTRAINT uq_user_role_tenant UNIQUE (user_id, role_id, tenant_id)
-    );
-
     CREATE TABLE IF NOT EXISTS "{schema_name}".grants (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         title VARCHAR(255) NOT NULL,
