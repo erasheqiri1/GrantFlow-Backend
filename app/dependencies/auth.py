@@ -41,6 +41,7 @@ def require_permission(permission_codename: str):
 
     def checker(
         request: Request,
+        credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
         db: Session = Depends(get_tenant_db)
     ):
         role_name = getattr(request.state, "role", None)
