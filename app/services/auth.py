@@ -298,24 +298,39 @@ def login_user(data: LoginRequest, db: Session) -> TokenResponse:
         raise HTTPException(status_code=403, detail="Llogaria është joaktive")
 
     # gjej rolin
-    query = db.query(UserRole).filter(UserRole.user_id == user.id)
+    tenant_slug_for_token = data.tenant_slug
+
     if data.tenant_slug:
         tenant = db.query(Tenant).filter(Tenant.slug == data.tenant_slug).first()
         if not tenant:
             raise HTTPException(status_code=404, detail="Organizata nuk u gjet")
         if tenant.status != TenantStatus.ACTIVE:
             raise HTTPException(status_code=403, detail="Organizata nuk është aprovuar ende")
-        query = query.filter(UserRole.tenant_id == tenant.id)
-    else:
-        query = query.filter(UserRole.tenant_id == None)
 
-    user_role = query.first()
+        # provoj me tenant specifik
+        user_role = db.query(UserRole).filter(
+            UserRole.user_id == user.id,
+            UserRole.tenant_id == tenant.id
+        ).first()
+
+        # nëse nuk gjet, shiko nëse është APPLICANT global (tenant_id = null)
+        if not user_role:
+            user_role = db.query(UserRole).filter(
+                UserRole.user_id == user.id,
+                UserRole.tenant_id == None
+            ).first()
+    else:
+        user_role = db.query(UserRole).filter(
+            UserRole.user_id == user.id,
+            UserRole.tenant_id == None
+        ).first()
+
     if not user_role:
         raise HTTPException(status_code=403, detail="Nuk ke akses në këtë organizatë")
 
     role_name = db.query(Role).filter(Role.id == user_role.role_id).first().name
-    token = create_token(user.id, role_name, data.tenant_slug)
-    return TokenResponse(access_token=token, role=role_name, tenant_slug=data.tenant_slug)
+    token = create_token(user.id, role_name, tenant_slug_for_token)
+    return TokenResponse(access_token=token, role=role_name, tenant_slug=tenant_slug_for_token)
 
 
 # ─────────────────────────────────────────
