@@ -111,7 +111,7 @@ def publish_grant(
     db: Session = Depends(get_tenant_db),
 ):
     _require_org_admin(user)
-    return grant_service.publish_grant(grant_id, db)
+    return grant_service.publish_grant(grant_id, user, db)
 
 
 @router.patch("/{grant_id}/close", response_model=GrantResponse)
@@ -121,4 +121,4 @@ def close_grant(
     db: Session = Depends(get_tenant_db),
 ):
     _require_org_admin(user)
-    return grant_service.close_grant(grant_id, db)
+    return grant_service.close_grant(grant_id, user, db)

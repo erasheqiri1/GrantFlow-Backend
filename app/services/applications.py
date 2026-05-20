@@ -9,6 +9,7 @@ from app.models.tenant.models import (
 )
 from app.models.public.models import Tenant, TenantStatus
 from app.schemas.applications import ApplicationCreate, ApplicationUpdate
+from app.services.audit import log_action
 
 
 def find_schema_for_application(application_id: str, db: Session) -> str:
@@ -108,6 +109,9 @@ def create_application(data: ApplicationCreate, user: dict, db: Session) -> Appl
 
     db.commit()
     db.refresh(application)
+    log_action(db, user["user_id"], "CREATE_APPLICATION", "application", str(application.id),
+               details={"grant_id": str(gid)})
+    db.commit()
     return application
 
 
@@ -168,6 +172,8 @@ def submit_application(application_id: str, user: dict, db: Session) -> Applicat
     app.submitted_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(app)
+    log_action(db, user["user_id"], "SUBMIT_APPLICATION", "application", str(app.id))
+    db.commit()
     return app
 
 

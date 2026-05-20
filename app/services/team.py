@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.models.public.models import User, UserRole, Role, Tenant
 from app.models.tenant.models import Invitation
 from app.schemas.team import InviteRequest, TeamMemberResponse
+from app.services.audit import log_action
 
 
 def _get_tenant(tenant_slug: str, db: Session) -> Tenant:
@@ -56,6 +57,9 @@ def send_invite(data: InviteRequest, current_user: dict, db: Session) -> dict:
         is_used=False,
     )
     db.add(invitation)
+    db.commit()
+    log_action(db, current_user["user_id"], "INVITE_USER", "invitation",
+               tenant_id=str(tenant.id), details={"email": data.email, "role": data.role})
     db.commit()
 
     # TODO: Celery -- dergo email me invite_token
