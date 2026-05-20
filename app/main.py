@@ -3,7 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.middleware.auth import AuthMiddleware
 from app.middleware.tenant import TenantMiddleware
 
-from app.routers import auth, profile,tenants,users, grants
+from app.routers import auth, profile, tenants, grants, team, users
+
 
 
 
@@ -31,6 +32,7 @@ app.include_router(tenants.router)
 app.include_router(users.router)
 
 app.include_router(grants.router)
+app.include_router(team.router)
 
 
 @app.get("/", tags=["Health"])
