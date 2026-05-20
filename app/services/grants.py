@@ -5,6 +5,7 @@ from sqlalchemy import text
 from app.models.tenant.models import Grant, GrantStatus
 from app.models.public.models import Tenant, TenantStatus
 from app.schemas.grants import GrantCreate, GrantUpdate
+from app.services.audit import log_action
 
 
 def create_grant(data: GrantCreate, user: dict, db: Session) -> Grant:
@@ -24,6 +25,9 @@ def create_grant(data: GrantCreate, user: dict, db: Session) -> Grant:
     db.add(grant)
     db.commit()
     db.refresh(grant)
+    log_action(db, user["user_id"], "CREATE_GRANT", "grant", str(grant.id),
+               details={"title": data.title})
+    db.commit()
     return grant
 
 
@@ -108,21 +112,27 @@ def delete_grant(grant_id: str, db: Session) -> None:
     db.commit()
 
 
-def publish_grant(grant_id: str, db: Session) -> Grant:
+def publish_grant(grant_id: str, user: dict, db: Session) -> Grant:
     grant = get_grant(grant_id, db)
     if grant.status != GrantStatus.DRAFT:
         raise HTTPException(status_code=400, detail="Vetëm grantet DRAFT mund të publikohen")
     grant.status = GrantStatus.PUBLISHED
     db.commit()
     db.refresh(grant)
+    log_action(db, user["user_id"], "PUBLISH_GRANT", "grant", str(grant.id),
+               details={"title": grant.title})
+    db.commit()
     return grant
 
 
-def close_grant(grant_id: str, db: Session) -> Grant:
+def close_grant(grant_id: str, user: dict, db: Session) -> Grant:
     grant = get_grant(grant_id, db)
     if grant.status != GrantStatus.PUBLISHED:
         raise HTTPException(status_code=400, detail="Vetëm grantet PUBLISHED mund të mbyllen")
     grant.status = GrantStatus.CLOSED
     db.commit()
     db.refresh(grant)
+    log_action(db, user["user_id"], "CLOSE_GRANT", "grant", str(grant.id),
+               details={"title": grant.title})
+    db.commit()
     return grant
