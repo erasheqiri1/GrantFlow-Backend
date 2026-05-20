@@ -56,5 +56,7 @@ class GrantResponse(BaseModel):
     applicant_type: ApplicantTypeEnum
     ai_weight:      float
     created_at:     datetime
+    tenant_slug:    Optional[str] = None
+    org_name:       Optional[str] = None
 
     model_config = {"from_attributes": True}

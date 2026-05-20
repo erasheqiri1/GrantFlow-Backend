@@ -25,13 +25,16 @@ def get_current_user(
 
 
 def get_tenant_db(request: Request):
-
     tenant_slug = getattr(request.state, "tenant_slug", None)
+    if not tenant_slug:
+        raise HTTPException(
+            status_code=400,
+            detail="Duhet të jesh i kyçur me tenant_slug. Kyçu sërish me 'tenant_slug' në login."
+        )
     db = SessionLocal()
     try:
-        if tenant_slug:
-            schema_name = f"tenant_{tenant_slug.replace('-', '_')}"
-            db.execute(text(f'SET search_path TO "{schema_name}", public'))
+        schema_name = f"tenant_{tenant_slug.replace('-', '_')}"
+        db.execute(text(f'SET search_path TO "{schema_name}", public'))
         yield db
     finally:
         db.close()
