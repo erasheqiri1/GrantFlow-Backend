@@ -68,6 +68,7 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     role: str
+    user_id: Optional[str] = None
     tenant_slug: Optional[str] = None
 
 

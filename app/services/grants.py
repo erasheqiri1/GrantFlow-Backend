@@ -25,7 +25,7 @@ def create_grant(data: GrantCreate, user: dict, db: Session) -> Grant:
     )
     db.add(grant)
     db.commit()
-    log_action(db, user["user_id"], "CREATE_GRANT", "grant", str(grant.id),
+    log_action(user["user_id"], "CREATE_GRANT", "grant", str(grant.id),
                tenant_id=user.get("tenant_id"), details={"title": data.title})
     return grant
 
@@ -183,7 +183,7 @@ def publish_grant(grant_id: str, user: dict, db: Session) -> Grant:
         raise HTTPException(status_code=400, detail="Vetëm grantet DRAFT mund të publikohen")
     grant.status = GrantStatus.PUBLISHED
     db.commit()
-    log_action(db, user["user_id"], "PUBLISH_GRANT", "grant", str(grant.id),
+    log_action(user["user_id"], "PUBLISH_GRANT", "grant", str(grant.id),
                tenant_id=user.get("tenant_id"), details={"title": grant.title})
     return grant
 
@@ -194,6 +194,6 @@ def close_grant(grant_id: str, user: dict, db: Session) -> Grant:
         raise HTTPException(status_code=400, detail="Vetëm grantet PUBLISHED mund të mbyllen")
     grant.status = GrantStatus.CLOSED
     db.commit()
-    log_action(db, user["user_id"], "CLOSE_GRANT", "grant", str(grant.id),
+    log_action(user["user_id"], "CLOSE_GRANT", "grant", str(grant.id),
                tenant_id=user.get("tenant_id"), details={"title": grant.title})
     return grant

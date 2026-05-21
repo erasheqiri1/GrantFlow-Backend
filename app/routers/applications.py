@@ -10,6 +10,11 @@ from app.dependencies.auth import get_current_user, get_tenant_db
 from app.schemas.applications import (
     ApplicationCreate, ApplicationUpdate, ApplicationResponse, AttachmentResponse
 )
+from pydantic import BaseModel
+from typing import Optional as Opt
+
+class DecisionRequest(BaseModel):
+    reason: Opt[str] = None
 from app.services import applications as app_service
 
 UPLOAD_DIR = "uploads/attachments"
@@ -30,8 +35,15 @@ def _require_applicant(user: dict):
 
 
 def _require_reviewer(user: dict):
+    """ORG_ADMIN dhe COMMISSIONER mund të shohin aplikimet."""
     if user["role"] not in ("ORG_ADMIN", "COMMISSIONER"):
         raise HTTPException(status_code=403, detail="Nuk ke leje")
+
+
+def _require_commissioner(user: dict):
+    """Vetëm COMMISSIONER mund të marrë vendime (aprovim/refuzim)."""
+    if user["role"] != "COMMISSIONER":
+        raise HTTPException(status_code=403, detail="Vetëm COMMISSIONER mund të marrë vendime")
 
 
 @router.post("", response_model=ApplicationResponse, status_code=201)
@@ -199,6 +211,67 @@ async def upload_attachment(
         if os.path.exists(file_path):
             os.remove(file_path)
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        pub_db.close()
+
+
+class AssignRequest(BaseModel):
+    commissioner_id: str
+
+@router.patch("/{application_id}/assign", response_model=ApplicationResponse)
+def assign_application(
+    application_id: str,
+    data: AssignRequest,
+    user=Depends(get_current_user),
+    db: Session = Depends(get_tenant_db),
+):
+    """ORG_ADMIN ricakton komisionerin për një aplikim."""
+    _require_org_admin(user)
+    return app_service.assign_application(application_id, data.commissioner_id, db)
+
+
+@router.patch("/{application_id}/start-review", response_model=ApplicationResponse)
+def start_review(
+    application_id: str,
+    user=Depends(get_current_user),
+):
+    _require_commissioner(user)
+    pub_db = SessionLocal()
+    try:
+        schema_name = app_service.find_schema_for_application(application_id, pub_db)
+        pub_db.execute(text(f'SET search_path TO "{schema_name}", public'))
+        return app_service.start_review(application_id, user, pub_db)
+    finally:
+        pub_db.close()
+
+
+@router.patch("/{application_id}/approve", response_model=ApplicationResponse)
+def approve_application(
+    application_id: str,
+    user=Depends(get_current_user),
+):
+    _require_commissioner(user)
+    pub_db = SessionLocal()
+    try:
+        schema_name = app_service.find_schema_for_application(application_id, pub_db)
+        pub_db.execute(text(f'SET search_path TO "{schema_name}", public'))
+        return app_service.approve_application(application_id, user, pub_db)
+    finally:
+        pub_db.close()
+
+
+@router.patch("/{application_id}/reject", response_model=ApplicationResponse)
+def reject_application(
+    application_id: str,
+    data: DecisionRequest = DecisionRequest(),
+    user=Depends(get_current_user),
+):
+    _require_commissioner(user)
+    pub_db = SessionLocal()
+    try:
+        schema_name = app_service.find_schema_for_application(application_id, pub_db)
+        pub_db.execute(text(f'SET search_path TO "{schema_name}", public'))
+        return app_service.reject_application(application_id, data.reason or "", user, pub_db)
     finally:
         pub_db.close()
 

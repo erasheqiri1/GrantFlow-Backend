@@ -77,7 +77,7 @@ def register_user(data: RegisterRequest, db: Session) -> TokenResponse:
         raise HTTPException(status_code=500, detail="Gabim gjatë regjistrimit")
 
     token = create_token(user.id, "APPLICANT", None)
-    return TokenResponse(access_token=token, role="APPLICANT")
+    return TokenResponse(access_token=token, role="APPLICANT", user_id=str(user.id))
 
 
 # ─────────────────────────────────────────
@@ -360,7 +360,7 @@ def login_user(data: LoginRequest, db: Session) -> TokenResponse:
 
     role_name = db.query(Role).filter(Role.id == user_role.role_id).first().name
     token = create_token(user.id, role_name, tenant_slug_for_token)
-    return TokenResponse(access_token=token, role=role_name, tenant_slug=tenant_slug_for_token)
+    return TokenResponse(access_token=token, role=role_name, user_id=str(user.id), tenant_slug=tenant_slug_for_token)
 
 
 # ─────────────────────────────────────────
@@ -466,4 +466,4 @@ def accept_invite(data: InviteAcceptRequest, db: Session) -> TokenResponse:
         raise HTTPException(status_code=500, detail="Gabim gjatë aktivizimit të ftesës")
 
     token = create_token(user.id, invite_role, tenant_slug)
-    return TokenResponse(access_token=token, role=invite_role, tenant_slug=tenant_slug)
+    return TokenResponse(access_token=token, role=invite_role, user_id=str(user.id), tenant_slug=tenant_slug)

@@ -62,6 +62,8 @@ class ApplicationResponse(BaseModel):
     grant_id:         UUID
     grant_title:      Optional[str] = None
     user_id:          UUID
+    user_email:       Optional[str] = None
+    user_name:        Optional[str] = None
     status:           ApplicationStatusEnum
     motivation_letter: Optional[str]
     submitted_at:     Optional[datetime]

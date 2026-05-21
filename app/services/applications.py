@@ -150,9 +150,27 @@ def _enrich_with_attachments(app: Application, db: Session) -> None:
         app.__dict__['attachments'] = []
 
 
+def _enrich_with_user_info(app: Application, db: Session) -> None:
+    """Shton email dhe emrin e aplikantit si atribute dinamike."""
+    try:
+        row = db.execute(text(
+            "SELECT email, first_name, last_name FROM public.users WHERE id = :uid"
+        ), {"uid": str(app.user_id)}).fetchone()
+        if row:
+            app.__dict__['user_email'] = row.email
+            app.__dict__['user_name'] = f"{row.first_name or ''} {row.last_name or ''}".strip() or row.email
+        else:
+            app.__dict__['user_email'] = None
+            app.__dict__['user_name'] = None
+    except Exception:
+        app.__dict__['user_email'] = None
+        app.__dict__['user_name'] = None
+
+
 def _enrich(app: Application, db: Session) -> None:
     _enrich_with_grant_title(app, db)
     _enrich_with_attachments(app, db)
+    _enrich_with_user_info(app, db)
 
 
 def get_my_applications(user: dict, db: Session) -> list:
@@ -351,3 +369,56 @@ def get_all_applications(
     for app in apps:
         _enrich(app, db)
     return apps
+
+
+def assign_application(application_id: str, commissioner_id: str, db: Session) -> Application:
+    app = get_application(application_id, db)
+    try:
+        app.assigned_to = uuid.UUID(commissioner_id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="commissioner_id i pavlefshëm")
+    db.commit()
+    _enrich(app, db)
+    return app
+
+
+def start_review(application_id: str, user: dict, db: Session) -> Application:
+    app = get_application(application_id, db)
+    if app.status != ApplicationStatus.SUBMITTED:
+        # Nëse është tashmë UNDER_REVIEW ose më tej, kthe pa ndryshim
+        _enrich(app, db)
+        return app
+    app.status = ApplicationStatus.UNDER_REVIEW
+    db.commit()
+    log_action(user["user_id"], "START_REVIEW", "application", str(app.id))
+    _enrich(app, db)
+    return app
+
+
+def approve_application(application_id: str, user: dict, db: Session) -> Application:
+    app = get_application(application_id, db)
+    if app.status not in (ApplicationStatus.SUBMITTED, ApplicationStatus.UNDER_REVIEW):
+        raise HTTPException(status_code=400, detail="Aplikimi nuk mund të aprovohet në këtë status")
+    app.status = ApplicationStatus.APPROVED
+    app.decided_at = datetime.now(timezone.utc)
+    db.commit()
+    grant = db.query(Grant).filter(Grant.id == app.grant_id).first()
+    log_action(user["user_id"], "APPROVE_APPLICATION", "application", str(app.id),
+               details={"grant_title": grant.title if grant else None})
+    _enrich(app, db)
+    return app
+
+
+def reject_application(application_id: str, reason: str, user: dict, db: Session) -> Application:
+    app = get_application(application_id, db)
+    if app.status not in (ApplicationStatus.SUBMITTED, ApplicationStatus.UNDER_REVIEW):
+        raise HTTPException(status_code=400, detail="Aplikimi nuk mund të refuzohet në këtë status")
+    app.status = ApplicationStatus.REJECTED
+    app.decided_at = datetime.now(timezone.utc)
+    app.decision_reason = reason or None
+    db.commit()
+    grant = db.query(Grant).filter(Grant.id == app.grant_id).first()
+    log_action(user["user_id"], "REJECT_APPLICATION", "application", str(app.id),
+               details={"grant_title": grant.title if grant else None, "reason": reason})
+    _enrich(app, db)
+    return app
