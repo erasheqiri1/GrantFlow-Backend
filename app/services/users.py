@@ -1,12 +1,13 @@
 import uuid
 from typing import Optional
 
+import bcrypt
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models.public.models import (
     User, UserRole, Role, Tenant,
-    UserProfile, ApplicantProfile
+    UserProfile, ApplicantProfile, RoleName
 )
 
 
@@ -49,6 +50,49 @@ def get_users(db: Session) -> dict:
             "created_at": user.created_at,
         })
     return {"total": len(items), "items": items}
+
+
+def toggle_user_active(db: Session, user_id: str, requester_id: str) -> dict:
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="ID i pavlefshëm")
+
+    if str(uid) == requester_id:
+        raise HTTPException(status_code=400, detail="Nuk mund ta deaktivizoni llogarinë tuaj")
+
+    user = db.query(User).filter(User.id == uid).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Useri nuk u gjet")
+
+    user.is_active = not user.is_active
+    db.commit()
+    status = "aktivizuar" if user.is_active else "deaktivizuar"
+    return {"message": f"Useri u {status} me sukses.", "is_active": user.is_active}
+
+
+def create_super_admin(db: Session, data) -> dict:
+    existing = db.query(User).filter(User.email == data.email).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Email ekziston tashmë")
+
+    password_hash = bcrypt.hashpw(data.password.encode(), bcrypt.gensalt()).decode()
+    user = User(
+        id=uuid.uuid4(),
+        email=data.email,
+        password_hash=password_hash,
+        first_name=data.first_name,
+        last_name=data.last_name,
+        is_active=True,
+    )
+    db.add(user)
+    db.flush()
+
+    role = db.query(Role).filter(Role.name == RoleName.SUPER_ADMIN).first()
+    db.add(UserRole(id=uuid.uuid4(), user_id=user.id, role_id=role.id, tenant_id=None))
+    db.commit()
+
+    return {"message": f"Super Admin '{data.email}' u krijua me sukses."}
 
 
 def get_user(db: Session, user_id: str) -> dict:
