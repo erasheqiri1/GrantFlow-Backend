@@ -301,32 +301,61 @@ def login_user(data: LoginRequest, db: Session) -> TokenResponse:
     tenant_slug_for_token = data.tenant_slug
 
     if data.tenant_slug:
+        # Slug i dhënë eksplicitisht — valido dhe gjej rolin
         tenant = db.query(Tenant).filter(Tenant.slug == data.tenant_slug).first()
         if not tenant:
             raise HTTPException(status_code=404, detail="Organizata nuk u gjet")
         if tenant.status != TenantStatus.ACTIVE:
             raise HTTPException(status_code=403, detail="Organizata nuk është aprovuar ende")
 
-        # provoj me tenant specifik
         user_role = db.query(UserRole).filter(
             UserRole.user_id == user.id,
             UserRole.tenant_id == tenant.id
         ).first()
 
-        # nëse nuk gjet, shiko nëse është APPLICANT global (tenant_id = null)
+        # fallback te roli global nëse nuk ka rol specifik tenant
         if not user_role:
             user_role = db.query(UserRole).filter(
                 UserRole.user_id == user.id,
                 UserRole.tenant_id == None
             ).first()
     else:
+        # Pa slug — provoj rolin global (applicant)
         user_role = db.query(UserRole).filter(
             UserRole.user_id == user.id,
             UserRole.tenant_id == None
         ).first()
 
+        if not user_role:
+            # Nuk ka rol global — auto-detekto tenant-in nga user_roles
+            tenant_roles = (
+                db.query(UserRole)
+                .filter(UserRole.user_id == user.id, UserRole.tenant_id != None)
+                .all()
+            )
+
+            if len(tenant_roles) == 1:
+                # Vetëm një tenant — kyçu automatikisht pa slug
+                user_role = tenant_roles[0]
+                tenant = db.query(Tenant).filter(Tenant.id == user_role.tenant_id).first()
+                if tenant:
+                    if tenant.status != TenantStatus.ACTIVE:
+                        raise HTTPException(status_code=403, detail="Organizata nuk është aprovuar ende")
+                    tenant_slug_for_token = tenant.slug
+            elif len(tenant_roles) > 1:
+                # Shumë tenantë — kërko slug eksplicit
+                slugs = []
+                for tr in tenant_roles:
+                    t = db.query(Tenant).filter(Tenant.id == tr.tenant_id).first()
+                    if t:
+                        slugs.append(t.slug)
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Keni akses në shumë organizata. Specifikoni slug-un: {', '.join(slugs)}"
+                )
+
     if not user_role:
-        raise HTTPException(status_code=403, detail="Nuk ke akses në këtë organizatë")
+        raise HTTPException(status_code=403, detail="Nuk ke akses")
 
     role_name = db.query(Role).filter(Role.id == user_role.role_id).first().name
     token = create_token(user.id, role_name, tenant_slug_for_token)

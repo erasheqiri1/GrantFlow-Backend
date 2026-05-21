@@ -5,9 +5,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from app.models.tenant.models import (
-    Application, ApplicationAnswer, ApplicationStatus, Grant, GrantStatus
+    Application, ApplicationAnswer, ApplicationStatus,
+    Grant, GrantStatus, CommissionerWorkload
 )
-from app.models.public.models import Tenant, TenantStatus
+from app.models.public.models import Tenant, TenantStatus, UserRole, ApplicantProfile
 from app.schemas.applications import ApplicationCreate, ApplicationUpdate
 from app.services.audit import log_action
 
@@ -81,6 +82,16 @@ def create_application(data: ApplicationCreate, user: dict, db: Session) -> Appl
     if grant.status != GrantStatus.PUBLISHED:
         raise HTTPException(status_code=400, detail="Mund të aplikosh vetëm për grante PUBLISHED")
 
+    # kontrollo nëse profili i aplikantit është i plotë
+    applicant_profile = db.query(ApplicantProfile).filter(
+        ApplicantProfile.user_id == uuid.UUID(user["user_id"])
+    ).first()
+    if not applicant_profile or not applicant_profile.applicant_type:
+        raise HTTPException(
+            status_code=400,
+            detail="PROFILE_INCOMPLETE"
+        )
+
     # kontrollo nëse ka aplikuar tashmë
     existing = db.query(Application).filter(
         Application.grant_id == gid,
@@ -92,33 +103,46 @@ def create_application(data: ApplicationCreate, user: dict, db: Session) -> Appl
     application = Application(
         grant_id=gid,
         user_id=uuid.UUID(user["user_id"]),
-        status=ApplicationStatus.DRAFT,
+        status=ApplicationStatus.SUBMITTED,
+        submitted_at=datetime.now(timezone.utc),
         motivation_letter=data.motivation_letter,
     )
     db.add(application)
     db.flush()
 
-    # shto përgjigjet nëse ka
     for ans in (data.answers or []):
-        answer = ApplicationAnswer(
+        db.add(ApplicationAnswer(
             application_id=application.id,
             question_id=ans.question_id,
             answer_text=ans.answer_text,
-        )
-        db.add(answer)
+        ))
 
+    _auto_assign_commissioner(application, db)
     db.commit()
     db.refresh(application)
-    log_action(db, user["user_id"], "CREATE_APPLICATION", "application", str(application.id),
+    log_action(db, user["user_id"], "SUBMIT_APPLICATION", "application", str(application.id),
                details={"grant_id": str(gid)})
     db.commit()
+    _enrich_with_grant_title(application, db)
     return application
 
 
+def _enrich_with_grant_title(app: Application, db: Session) -> None:
+    """Shton grant_title si atribut dinamik te objekti Application."""
+    try:
+        grant = db.query(Grant).filter(Grant.id == app.grant_id).first()
+        app.__dict__['grant_title'] = grant.title if grant else None
+    except Exception:
+        app.__dict__['grant_title'] = None
+
+
 def get_my_applications(user: dict, db: Session) -> list:
-    return db.query(Application).filter(
+    apps = db.query(Application).filter(
         Application.user_id == uuid.UUID(user["user_id"])
     ).order_by(Application.created_at.desc()).all()
+    for app in apps:
+        _enrich_with_grant_title(app, db)
+    return apps
 
 
 def get_application(application_id: str, db: Session) -> Application:
@@ -129,6 +153,7 @@ def get_application(application_id: str, db: Session) -> Application:
     app = db.query(Application).filter(Application.id == aid).first()
     if not app:
         raise HTTPException(status_code=404, detail="Aplikimi nuk u gjet")
+    _enrich_with_grant_title(app, db)
     return app
 
 
@@ -160,6 +185,78 @@ def update_application(application_id: str, data: ApplicationUpdate, user: dict,
     return app
 
 
+def _auto_assign_commissioner(app: Application, db: Session) -> None:
+    """
+    Gjen komisionerin me ngarkesën më të vogël dhe e cakton te aplikimi.
+    Thirret automatikisht kur aplikimi submit-ohet.
+    Nëse dështon (pa komisioner), nuk e ndal submit-in.
+    """
+    try:
+        # Merr schema_name nga search_path aktive
+        result = db.execute(text("SHOW search_path")).fetchone()
+        schema_name = result[0].split(',')[0].strip().strip('"')
+        tenant_slug = schema_name.replace('tenant_', '', 1)
+
+        # Merr tenant
+        tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
+        if not tenant:
+            return
+
+        # Merr role_id të COMMISSIONER
+        commissioner_role = db.execute(text(
+            "SELECT id FROM public.roles WHERE name = 'COMMISSIONER'"
+        )).fetchone()
+        if not commissioner_role:
+            return
+
+        # Merr të gjithë komisionerët e këtij tenant
+        rows = db.execute(text("""
+            SELECT user_id FROM public.user_roles
+            WHERE role_id = :role_id AND tenant_id = :tenant_id
+        """), {"role_id": str(commissioner_role.id), "tenant_id": str(tenant.id)}).fetchall()
+
+        if not rows:
+            return
+
+        commissioner_ids = [row.user_id for row in rows]
+
+        # Gjej atë me assigned_count më të vogël
+        workloads = db.query(CommissionerWorkload).filter(
+            CommissionerWorkload.commissioner_id.in_(commissioner_ids)
+        ).order_by(CommissionerWorkload.assigned_count.asc()).all()
+
+        tracked_ids = {w.commissioner_id for w in workloads}
+        untracked   = [cid for cid in commissioner_ids if cid not in tracked_ids]
+
+        if untracked:
+            # Ka komisioner pa asnjë caktim ende → zgjedh të parin
+            chosen_id = untracked[0]
+        elif workloads:
+            chosen_id = workloads[0].commissioner_id
+        else:
+            return
+
+        # Cakto komisionerin te aplikimi
+        app.assigned_to = chosen_id
+
+        # Përditëso ose krijo workload record
+        workload = db.query(CommissionerWorkload).filter(
+            CommissionerWorkload.commissioner_id == chosen_id
+        ).first()
+        if workload:
+            workload.assigned_count += 1
+        else:
+            db.add(CommissionerWorkload(
+                commissioner_id=chosen_id,
+                assigned_count=1,
+                completed_count=0,
+            ))
+
+    except Exception as e:
+        # Mos e ndal submit-in nëse auto-assign dështon
+        print(f"[auto-assign] dështoi: {e}")
+
+
 def submit_application(application_id: str, user: dict, db: Session) -> Application:
     app = get_application(application_id, db)
 
@@ -170,6 +267,10 @@ def submit_application(application_id: str, user: dict, db: Session) -> Applicat
 
     app.status = ApplicationStatus.SUBMITTED
     app.submitted_at = datetime.now(timezone.utc)
+
+    # Auto-cakto komisionerin me ngarkesën më të vogël
+    _auto_assign_commissioner(app, db)
+
     db.commit()
     db.refresh(app)
     log_action(db, user["user_id"], "SUBMIT_APPLICATION", "application", str(app.id))
@@ -177,13 +278,27 @@ def submit_application(application_id: str, user: dict, db: Session) -> Applicat
     return app
 
 
-def get_all_applications(db: Session, grant_id: str = None, status: str = None) -> list:
-    query = db.query(Application)
+def get_all_applications(
+    db: Session,
+    grant_id: str = None,
+    status: str = None,
+    assigned_to: str = None,
+) -> list:
+    query = db.query(Application).filter(
+        Application.status != ApplicationStatus.DRAFT
+    )
     if grant_id:
         try:
             query = query.filter(Application.grant_id == uuid.UUID(grant_id))
         except ValueError:
             pass
     if status:
+        if status == "DRAFT":
+            raise HTTPException(status_code=403, detail="Nuk mund të shihni aplikime DRAFT")
         query = query.filter(Application.status == status)
+    if assigned_to:
+        try:
+            query = query.filter(Application.assigned_to == uuid.UUID(assigned_to))
+        except ValueError:
+            pass
     return query.order_by(Application.created_at.desc()).all()

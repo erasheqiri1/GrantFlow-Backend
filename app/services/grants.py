@@ -1,8 +1,9 @@
 import uuid
+from datetime import datetime, timezone
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from app.models.tenant.models import Grant, GrantStatus
+from app.models.tenant.models import Grant, GrantStatus, ApplicationQuestion
 from app.models.public.models import Tenant, TenantStatus
 from app.schemas.grants import GrantCreate, GrantUpdate
 from app.services.audit import log_action
@@ -31,17 +32,38 @@ def create_grant(data: GrantCreate, user: dict, db: Session) -> Grant:
     return grant
 
 
-def get_grants(db: Session, status: str = None) -> list:
+def get_grants(
+    db: Session,
+    status: str = None,
+    title: str = None,
+    applicant_type: str = None,
+    deadline_to: str = None,
+) -> list:
     query = db.query(Grant)
     if status:
         query = query.filter(Grant.status == status)
+    if title:
+        query = query.filter(Grant.title.ilike(f"%{title}%"))
+    if applicant_type:
+        query = query.filter(Grant.applicant_type == applicant_type)
+    if deadline_to:
+        try:
+            dt = datetime.fromisoformat(deadline_to).replace(tzinfo=timezone.utc)
+            query = query.filter(Grant.deadline <= dt)
+        except ValueError:
+            pass
     return query.order_by(Grant.created_at.desc()).all()
 
 
-def get_all_published_grants(db: Session) -> list:
+def get_all_published_grants(
+    db: Session,
+    title: str = None,
+    applicant_type: str = None,
+    deadline_to: str = None,
+) -> list:
     """
     Për aplikantët pa tenant — merr të gjitha grantet PUBLISHED
-    nga të gjitha organizatat aktive.
+    nga të gjitha organizatat aktive, me filtra opsionalë.
     """
     tenants = db.query(Tenant).filter(Tenant.status == TenantStatus.ACTIVE).all()
     all_grants = []
@@ -59,9 +81,16 @@ def get_all_published_grants(db: Session) -> list:
             """)).fetchall()
         except Exception:
             db.rollback()
-            continue  # schema nuk ekziston, kalo
+            continue
 
         for row in rows:
+            if title and title.lower() not in (row.title or "").lower():
+                continue
+            if applicant_type and row.applicant_type != applicant_type:
+                continue
+            if deadline_to and row.deadline and row.deadline.date().isoformat() > deadline_to:
+                continue
+
             all_grants.append({
                 "id":             row.id,
                 "title":          row.title,
@@ -77,9 +106,48 @@ def get_all_published_grants(db: Session) -> list:
                 "created_at":     row.created_at,
                 "tenant_slug":    tenant.slug,
                 "org_name":       tenant.name,
+                "questions":      [],
             })
 
     return all_grants
+
+
+def get_grant_detail(grant_id: str, db: Session) -> dict:
+    """
+    Kthen grantin + pyetjet e tij.
+    Përdoret nga GET /grants/{id} — aplikanti sheh çfarë duhet t'i përgjigjet.
+    """
+    grant = get_grant(grant_id, db)
+    questions = (
+        db.query(ApplicationQuestion)
+        .filter(ApplicationQuestion.grant_id == grant.id)
+        .order_by(ApplicationQuestion.order_no)
+        .all()
+    )
+    return {
+        "id":             grant.id,
+        "title":          grant.title,
+        "description":    grant.description,
+        "budget":         float(grant.budget)      if grant.budget      else None,
+        "currency":       grant.currency,
+        "grant_value":    float(grant.grant_value) if grant.grant_value else None,
+        "deadline":       grant.deadline,
+        "max_applicants": grant.max_applicants,
+        "status":         grant.status,
+        "applicant_type": grant.applicant_type,
+        "ai_weight":      float(grant.ai_weight),
+        "created_at":     grant.created_at,
+        "questions": [
+            {
+                "id":            q.id,
+                "question_text": q.question_text,
+                "question_type": q.question_type,
+                "is_required":   q.is_required,
+                "order_no":      q.order_no,
+            }
+            for q in questions
+        ],
+    }
 
 
 def get_grant(grant_id: str, db: Session) -> Grant:

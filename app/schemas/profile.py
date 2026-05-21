@@ -14,6 +14,7 @@ class ProfileResponse(BaseModel):
     address: Optional[str] = None
     role: str
     tenant_slug: Optional[str] = None
+    applicant_type: Optional[ApplicantType] = None
 
     class Config:
         from_attributes = True

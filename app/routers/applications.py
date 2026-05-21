@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional
@@ -103,13 +103,14 @@ def submit_application(
 
 @router.get("", response_model=List[ApplicationResponse])
 def get_all_applications(
-    grant_id: Optional[str] = None,
-    status: Optional[str] = None,
+    grant_id:    Optional[str] = Query(None, description="Filtro sipas grant ID"),
+    status:      Optional[str] = Query(None, description="SUBMITTED | UNDER_REVIEW | APPROVED | REJECTED"),
+    assigned_to: Optional[str] = Query(None, description="UUID i komisionerit të caktuar"),
     user=Depends(get_current_user),
     db: Session = Depends(get_tenant_db),
 ):
     _require_reviewer(user)
-    return app_service.get_all_applications(db, grant_id, status)
+    return app_service.get_all_applications(db, grant_id, status, assigned_to)
 
 
 @router.get("/{application_id}", response_model=ApplicationResponse)

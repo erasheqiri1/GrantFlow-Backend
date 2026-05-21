@@ -24,6 +24,8 @@ def get_my_profile(current_user: dict, db: Session) -> ProfileResponse:
 
     profile = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
 
+    applicant_profile = db.query(ApplicantProfile).filter(ApplicantProfile.user_id == user_id).first()
+
     return ProfileResponse(
         id=str(user.id),
         email=user.email,
@@ -34,6 +36,7 @@ def get_my_profile(current_user: dict, db: Session) -> ProfileResponse:
         address=profile.address if profile else None,
         role=current_user["role"],
         tenant_slug=current_user["tenant_slug"],
+        applicant_type=applicant_profile.applicant_type if applicant_profile else None,
     )
 
 

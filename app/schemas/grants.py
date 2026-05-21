@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from enum import Enum
 from uuid import UUID
@@ -43,6 +43,17 @@ class GrantUpdate(BaseModel):
     ai_weight:      Optional[float] = None
 
 
+class QuestionInGrant(BaseModel):
+    """Pyetjet e grantit — shfaqen kur aplikanti shikon grantin."""
+    id:            UUID
+    question_text: str
+    question_type: str
+    is_required:   bool
+    order_no:      int
+
+    model_config = {"from_attributes": True}
+
+
 class GrantResponse(BaseModel):
     id:             UUID
     title:          str
@@ -58,5 +69,6 @@ class GrantResponse(BaseModel):
     created_at:     datetime
     tenant_slug:    Optional[str] = None
     org_name:       Optional[str] = None
+    questions:      List[QuestionInGrant] = []
 
     model_config = {"from_attributes": True}

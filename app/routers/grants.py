@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional
@@ -40,26 +40,30 @@ def create_grant(
 @router.get("", response_model=List[GrantResponse])
 def get_grants(
     request: Request,
-    status: Optional[str] = None,
+    status:         Optional[str] = Query(None, description="DRAFT | PUBLISHED | CLOSED"),
+    title:          Optional[str] = Query(None, description="Kërko me fjalë kyçe në titull"),
+    applicant_type: Optional[str] = Query(None, description="ANY | STUDENT | BUSINESS | ORGANIZATION | INDIVIDUAL"),
+    deadline_to:    Optional[str] = Query(None, description="Grante që skadojnë deri më (YYYY-MM-DD)"),
     user=Depends(get_current_user),
 ):
     slug = getattr(request.state, "tenant_slug", None)
 
     if not slug:
-        # APPLICANT pa tenant — shfaq të gjitha grantet PUBLISHED nga të gjitha orget
-        from app.core.database import get_db
         db = SessionLocal()
         try:
-            return grant_service.get_all_published_grants(db)
+            return grant_service.get_all_published_grants(
+                db, title, applicant_type, deadline_to,
+            )
         finally:
             db.close()
 
-    # ORG_ADMIN / COMMISSIONER — shfaq grantet e org-ut të tyre
     db = SessionLocal()
     try:
         schema_name = f"tenant_{slug.replace('-', '_')}"
         db.execute(text(f'SET search_path TO "{schema_name}", public'))
-        return grant_service.get_grants(db, status)
+        return grant_service.get_grants(
+            db, status, title, applicant_type, deadline_to,
+        )
     finally:
         db.close()
 
@@ -72,13 +76,28 @@ def get_grant(
     user=Depends(get_current_user),
 ):
     slug = tenant_slug or getattr(request.state, "tenant_slug", None)
-    if not slug:
-        raise HTTPException(status_code=400, detail="Duhet tenant_slug.")
     db = SessionLocal()
     try:
-        schema_name = f"tenant_{slug.replace('-', '_')}"
+        if slug:
+            # ORG_ADMIN / COMMISSIONER — di schemën e tij
+            schema_name = f"tenant_{slug.replace('-', '_')}"
+        else:
+            # APPLICANT — gjej schemën automatikisht nga grant_id
+            from app.services.applications import find_schema_for_grant
+            import uuid as _uuid
+            try:
+                gid = _uuid.UUID(grant_id)
+            except ValueError:
+                raise HTTPException(status_code=422, detail="grant_id i pavlefshëm")
+            schema_name = find_schema_for_grant(gid, db)
+
         db.execute(text(f'SET search_path TO "{schema_name}", public'))
-        return grant_service.get_grant(grant_id, db)
+        result = grant_service.get_grant_detail(grant_id, db)
+        # Shto tenant info nëse mungon slug-u (aplikant)
+        if not slug:
+            schema_slug = schema_name.replace("tenant_", "", 1)
+            result["tenant_slug"] = schema_slug
+        return result
     finally:
         db.close()
 

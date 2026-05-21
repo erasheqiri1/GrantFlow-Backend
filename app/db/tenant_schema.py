@@ -3,16 +3,7 @@ from sqlalchemy.orm import Session
 
 TENANT_TABLES_SQL = """
 
--- 1. user_roles
-CREATE TABLE IF NOT EXISTS "{schema}".user_roles (
-    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id    UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-    role_id    UUID NOT NULL REFERENCES public.roles(id) ON DELETE CASCADE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_user_role UNIQUE (user_id, role_id)
-);
-
--- 2. grants
+-- 1. grants
 CREATE TABLE IF NOT EXISTS "{schema}".grants (
     id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title          VARCHAR(200) NOT NULL,
@@ -33,7 +24,7 @@ CREATE TABLE IF NOT EXISTS "{schema}".grants (
     updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 3. criteria
+-- 2. criteria
 CREATE TABLE IF NOT EXISTS "{schema}".criteria (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     grant_id    UUID NOT NULL REFERENCES "{schema}".grants(id) ON DELETE CASCADE,
@@ -44,7 +35,7 @@ CREATE TABLE IF NOT EXISTS "{schema}".criteria (
     CONSTRAINT uq_grant_criteria_name UNIQUE (grant_id, name)
 );
 
--- 4. grant_tags
+-- 3. grant_tags
 CREATE TABLE IF NOT EXISTS "{schema}".grant_tags (
     id       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     grant_id UUID NOT NULL REFERENCES "{schema}".grants(id) ON DELETE CASCADE,
@@ -52,7 +43,7 @@ CREATE TABLE IF NOT EXISTS "{schema}".grant_tags (
     CONSTRAINT uq_grant_tag UNIQUE (grant_id, tag)
 );
 
--- 5. application_questions
+-- 4. application_questions
 CREATE TABLE IF NOT EXISTS "{schema}".application_questions (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     grant_id      UUID NOT NULL REFERENCES "{schema}".grants(id) ON DELETE CASCADE,
@@ -63,7 +54,7 @@ CREATE TABLE IF NOT EXISTS "{schema}".application_questions (
     order_no      INTEGER NOT NULL DEFAULT 1
 );
 
--- 6. applications
+-- 5. applications
 CREATE TABLE IF NOT EXISTS "{schema}".applications (
     id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     grant_id          UUID NOT NULL REFERENCES "{schema}".grants(id) ON DELETE CASCADE,
@@ -81,7 +72,7 @@ CREATE TABLE IF NOT EXISTS "{schema}".applications (
     CONSTRAINT uq_application_grant_user UNIQUE (grant_id, user_id)
 );
 
--- 7. application_answers
+-- 6. application_answers
 CREATE TABLE IF NOT EXISTS "{schema}".application_answers (
     id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     application_id UUID NOT NULL REFERENCES "{schema}".applications(id) ON DELETE CASCADE,
@@ -91,7 +82,7 @@ CREATE TABLE IF NOT EXISTS "{schema}".application_answers (
     CONSTRAINT uq_application_question_answer UNIQUE (application_id, question_id)
 );
 
--- 8. cvs (1:1 me application)
+-- 7. cvs (1:1 me application)
 CREATE TABLE IF NOT EXISTS "{schema}".cvs (
     id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     application_id UUID NOT NULL REFERENCES "{schema}".applications(id) ON DELETE CASCADE,
@@ -102,7 +93,7 @@ CREATE TABLE IF NOT EXISTS "{schema}".cvs (
     CONSTRAINT uq_cv_application UNIQUE (application_id)
 );
 
--- 9. attachments (shume per aplikim)
+-- 8. attachments (shume per aplikim)
 CREATE TABLE IF NOT EXISTS "{schema}".attachments (
     id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     application_id UUID NOT NULL REFERENCES "{schema}".applications(id) ON DELETE CASCADE,
@@ -113,7 +104,7 @@ CREATE TABLE IF NOT EXISTS "{schema}".attachments (
     uploaded_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 10. ai_scores (1:1 me application)
+-- 9. ai_scores (1:1 me application)
 CREATE TABLE IF NOT EXISTS "{schema}".ai_scores (
     id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     application_id UUID NOT NULL REFERENCES "{schema}".applications(id) ON DELETE CASCADE,
@@ -129,7 +120,7 @@ CREATE TABLE IF NOT EXISTS "{schema}".ai_scores (
     CONSTRAINT uq_ai_score_application UNIQUE (application_id)
 );
 
--- 11. commissioner_scores
+-- 10. commissioner_scores
 CREATE TABLE IF NOT EXISTS "{schema}".commissioner_scores (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     application_id  UUID NOT NULL REFERENCES "{schema}".applications(id) ON DELETE CASCADE,
@@ -142,7 +133,7 @@ CREATE TABLE IF NOT EXISTS "{schema}".commissioner_scores (
     CONSTRAINT uq_commissioner_score UNIQUE (application_id, criteria_id)
 );
 
--- 12. commissioner_decisions
+-- 11. commissioner_decisions
 CREATE TABLE IF NOT EXISTS "{schema}".commissioner_decisions (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     application_id  UUID NOT NULL REFERENCES "{schema}".applications(id) ON DELETE CASCADE,
@@ -153,7 +144,7 @@ CREATE TABLE IF NOT EXISTS "{schema}".commissioner_decisions (
     CONSTRAINT uq_decision_application UNIQUE (application_id)
 );
 
--- 13. commissioner_workload
+-- 12. commissioner_workload
 CREATE TABLE IF NOT EXISTS "{schema}".commissioner_workload (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     commissioner_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
@@ -163,7 +154,7 @@ CREATE TABLE IF NOT EXISTS "{schema}".commissioner_workload (
     CONSTRAINT uq_commissioner_workload UNIQUE (commissioner_id)
 );
 
--- 14. invitations
+-- 13. invitations
 CREATE TABLE IF NOT EXISTS "{schema}".invitations (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email       VARCHAR(200) NOT NULL,
@@ -177,7 +168,7 @@ CREATE TABLE IF NOT EXISTS "{schema}".invitations (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 15. notifications
+-- 14. notifications
 CREATE TABLE IF NOT EXISTS "{schema}".notifications (
     id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id    UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
@@ -189,7 +180,7 @@ CREATE TABLE IF NOT EXISTS "{schema}".notifications (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 16. email_logs
+-- 15. email_logs
 CREATE TABLE IF NOT EXISTS "{schema}".email_logs (
     id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     to_email   VARCHAR(200) NOT NULL,
@@ -201,7 +192,7 @@ CREATE TABLE IF NOT EXISTS "{schema}".email_logs (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 17. application_status_updates
+-- 16. application_status_updates
 CREATE TABLE IF NOT EXISTS "{schema}".application_status_updates (
     id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     application_id UUID NOT NULL REFERENCES "{schema}".applications(id) ON DELETE CASCADE,
@@ -216,7 +207,7 @@ CREATE TABLE IF NOT EXISTS "{schema}".application_status_updates (
 
 def create_tenant_schema(db: Session, tenant_slug: str) -> None:
     """
-    Krijon schemën dhe 17 tabelat për tenant të ri.
+    Krijon schemën dhe 16 tabelat për tenant të ri.
     Thirret kur SUPER_ADMIN aprovo organizatën.
     """
     schema_name = f"tenant_{tenant_slug.replace('-', '_')}"
