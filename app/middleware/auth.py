@@ -18,11 +18,16 @@ PUBLIC_PATHS = [
     "/auth/invite/accept",
 ]
 
+PUBLIC_PREFIXES = [
+    "/uploads",
+]
+
 
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
 
-        if request.url.path in PUBLIC_PATHS:
+        path = request.url.path
+        if path in PUBLIC_PATHS or any(path.startswith(p) for p in PUBLIC_PREFIXES):
             return await call_next(request)
 
 

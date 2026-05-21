@@ -6,7 +6,7 @@ from sqlalchemy import text
 
 from app.models.tenant.models import (
     Application, ApplicationAnswer, ApplicationStatus,
-    Grant, GrantStatus, CommissionerWorkload
+    Grant, GrantStatus, CommissionerWorkload, Attachment
 )
 from app.models.public.models import Tenant, TenantStatus, UserRole, ApplicantProfile
 from app.schemas.applications import ApplicationCreate, ApplicationUpdate
@@ -87,10 +87,15 @@ def create_application(data: ApplicationCreate, user: dict, db: Session) -> Appl
         ApplicantProfile.user_id == uuid.UUID(user["user_id"])
     ).first()
     if not applicant_profile or not applicant_profile.applicant_type:
-        raise HTTPException(
-            status_code=400,
-            detail="PROFILE_INCOMPLETE"
-        )
+        raise HTTPException(status_code=400, detail="PROFILE_INCOMPLETE")
+
+    # kontrollo nëse tipi i aplikantit përputhet me kërkesat e grantit
+    if grant.applicant_type.value != "ANY":
+        if applicant_profile.applicant_type.value != grant.applicant_type.value:
+            raise HTTPException(
+                status_code=403,
+                detail=f"APPLICANT_TYPE_MISMATCH:{grant.applicant_type.value}"
+            )
 
     # kontrollo nëse ka aplikuar tashmë
     existing = db.query(Application).filter(
@@ -119,11 +124,9 @@ def create_application(data: ApplicationCreate, user: dict, db: Session) -> Appl
 
     _auto_assign_commissioner(application, db)
     db.commit()
-    db.refresh(application)
-    log_action(db, user["user_id"], "SUBMIT_APPLICATION", "application", str(application.id),
+    log_action(user["user_id"], "SUBMIT_APPLICATION", "application", str(application.id),
                details={"grant_id": str(gid)})
-    db.commit()
-    _enrich_with_grant_title(application, db)
+    _enrich(application, db)
     return application
 
 
@@ -136,12 +139,28 @@ def _enrich_with_grant_title(app: Application, db: Session) -> None:
         app.__dict__['grant_title'] = None
 
 
+def _enrich_with_attachments(app: Application, db: Session) -> None:
+    """Shton listën e attachments si atribut dinamik te objekti Application."""
+    try:
+        attachments = db.query(Attachment).filter(
+            Attachment.application_id == app.id
+        ).all()
+        app.__dict__['attachments'] = attachments
+    except Exception:
+        app.__dict__['attachments'] = []
+
+
+def _enrich(app: Application, db: Session) -> None:
+    _enrich_with_grant_title(app, db)
+    _enrich_with_attachments(app, db)
+
+
 def get_my_applications(user: dict, db: Session) -> list:
     apps = db.query(Application).filter(
         Application.user_id == uuid.UUID(user["user_id"])
     ).order_by(Application.created_at.desc()).all()
     for app in apps:
-        _enrich_with_grant_title(app, db)
+        _enrich(app, db)
     return apps
 
 
@@ -153,8 +172,36 @@ def get_application(application_id: str, db: Session) -> Application:
     app = db.query(Application).filter(Application.id == aid).first()
     if not app:
         raise HTTPException(status_code=404, detail="Aplikimi nuk u gjet")
-    _enrich_with_grant_title(app, db)
+    _enrich(app, db)
     return app
+
+
+def add_attachment(application_id: str, file_name: str, file_path: str,
+                   file_type: str, size_bytes: int, db: Session) -> Attachment:
+    """Shton një attachment te aplikimi."""
+    try:
+        aid = uuid.UUID(application_id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="ID e pavlefshme")
+    attachment = Attachment(
+        application_id=aid,
+        file_name=file_name,
+        file_path=file_path,
+        file_type=file_type,
+        size_bytes=size_bytes,
+    )
+    db.add(attachment)
+    db.commit()
+    return attachment
+
+
+def get_attachments(application_id: str, db: Session) -> list:
+    """Kthen listën e attachments për një aplikim."""
+    try:
+        aid = uuid.UUID(application_id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="ID e pavlefshme")
+    return db.query(Attachment).filter(Attachment.application_id == aid).all()
 
 
 def update_application(application_id: str, data: ApplicationUpdate, user: dict, db: Session) -> Application:
@@ -181,7 +228,6 @@ def update_application(application_id: str, data: ApplicationUpdate, user: dict,
             ))
 
     db.commit()
-    db.refresh(app)
     return app
 
 
@@ -272,9 +318,7 @@ def submit_application(application_id: str, user: dict, db: Session) -> Applicat
     _auto_assign_commissioner(app, db)
 
     db.commit()
-    db.refresh(app)
-    log_action(db, user["user_id"], "SUBMIT_APPLICATION", "application", str(app.id))
-    db.commit()
+    log_action(user["user_id"], "SUBMIT_APPLICATION", "application", str(app.id))
     return app
 
 
@@ -301,4 +345,7 @@ def get_all_applications(
             query = query.filter(Application.assigned_to == uuid.UUID(assigned_to))
         except ValueError:
             pass
-    return query.order_by(Application.created_at.desc()).all()
+    apps = query.order_by(Application.created_at.desc()).all()
+    for app in apps:
+        _enrich(app, db)
+    return apps

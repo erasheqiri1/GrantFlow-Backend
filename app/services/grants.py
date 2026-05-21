@@ -25,10 +25,8 @@ def create_grant(data: GrantCreate, user: dict, db: Session) -> Grant:
     )
     db.add(grant)
     db.commit()
-    db.refresh(grant)
-    log_action(db, user["user_id"], "CREATE_GRANT", "grant", str(grant.id),
+    log_action(user["user_id"], "CREATE_GRANT", "grant", str(grant.id),
                details={"title": data.title})
-    db.commit()
     return grant
 
 
@@ -37,7 +35,7 @@ def get_grants(
     status: str = None,
     title: str = None,
     applicant_type: str = None,
-    deadline_to: str = None,
+    deadline_from: str = None,
 ) -> list:
     query = db.query(Grant)
     if status:
@@ -46,10 +44,10 @@ def get_grants(
         query = query.filter(Grant.title.ilike(f"%{title}%"))
     if applicant_type:
         query = query.filter(Grant.applicant_type == applicant_type)
-    if deadline_to:
+    if deadline_from:
         try:
-            dt = datetime.fromisoformat(deadline_to).replace(tzinfo=timezone.utc)
-            query = query.filter(Grant.deadline <= dt)
+            dt = datetime.fromisoformat(deadline_from).replace(tzinfo=timezone.utc)
+            query = query.filter(Grant.deadline >= dt)
         except ValueError:
             pass
     return query.order_by(Grant.created_at.desc()).all()
@@ -59,7 +57,7 @@ def get_all_published_grants(
     db: Session,
     title: str = None,
     applicant_type: str = None,
-    deadline_to: str = None,
+    deadline_from: str = None,
 ) -> list:
     """
     Për aplikantët pa tenant — merr të gjitha grantet PUBLISHED
@@ -88,7 +86,7 @@ def get_all_published_grants(
                 continue
             if applicant_type and row.applicant_type != applicant_type:
                 continue
-            if deadline_to and row.deadline and row.deadline.date().isoformat() > deadline_to:
+            if deadline_from and row.deadline and row.deadline.date().isoformat() < deadline_from:
                 continue
 
             all_grants.append({
@@ -168,7 +166,6 @@ def update_grant(grant_id: str, data: GrantUpdate, db: Session) -> Grant:
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(grant, field, value)
     db.commit()
-    db.refresh(grant)
     return grant
 
 
@@ -186,10 +183,8 @@ def publish_grant(grant_id: str, user: dict, db: Session) -> Grant:
         raise HTTPException(status_code=400, detail="Vetëm grantet DRAFT mund të publikohen")
     grant.status = GrantStatus.PUBLISHED
     db.commit()
-    db.refresh(grant)
-    log_action(db, user["user_id"], "PUBLISH_GRANT", "grant", str(grant.id),
+    log_action(user["user_id"], "PUBLISH_GRANT", "grant", str(grant.id),
                details={"title": grant.title})
-    db.commit()
     return grant
 
 
@@ -199,8 +194,6 @@ def close_grant(grant_id: str, user: dict, db: Session) -> Grant:
         raise HTTPException(status_code=400, detail="Vetëm grantet PUBLISHED mund të mbyllen")
     grant.status = GrantStatus.CLOSED
     db.commit()
-    db.refresh(grant)
-    log_action(db, user["user_id"], "CLOSE_GRANT", "grant", str(grant.id),
+    log_action(user["user_id"], "CLOSE_GRANT", "grant", str(grant.id),
                details={"title": grant.title})
-    db.commit()
     return grant

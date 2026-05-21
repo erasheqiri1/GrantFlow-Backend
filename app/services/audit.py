@@ -8,7 +8,6 @@ from sqlalchemy import text
 
 
 def log_action(
-    db: Session,
     user_id: str,
     action: str,
     entity: str,
@@ -19,8 +18,11 @@ def log_action(
 ) -> None:
     """
     Regjistron një veprim në public.audit_logs.
-    Nuk ngre exception nëse dështon — audit nuk bllokon biznesin.
+    Përdor sesionin e vet të pavarur — nuk ndikon fare transaksionin e biznesit.
+    Nuk ngre exception nëse dështon.
     """
+    from app.core.database import SessionLocal
+    db = SessionLocal()
     try:
         db.execute(
             text("""
@@ -41,8 +43,14 @@ def log_action(
                 "created_at": datetime.now(timezone.utc),
             }
         )
+        db.commit()
     except Exception:
-        pass  # audit nuk bllokon biznesin
+        try:
+            db.rollback()
+        except Exception:
+            pass
+    finally:
+        db.close()
 
 
 def get_audit_logs(

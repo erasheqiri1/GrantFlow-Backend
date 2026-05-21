@@ -14,7 +14,45 @@ class ProfileResponse(BaseModel):
     address: Optional[str] = None
     role: str
     tenant_slug: Optional[str] = None
+
+    # ApplicantProfile — të përbashkëta
     applicant_type: Optional[ApplicantType] = None
+    has_prev_grant: Optional[bool] = None
+    description: Optional[str] = None
+
+    # STUDENT
+    university: Optional[str] = None
+    faculty: Optional[str] = None
+    study_program: Optional[str] = None
+    study_level: Optional[str] = None
+    study_year: Optional[int] = None
+    study_status: Optional[str] = None
+
+    # BUSINESS
+    business_name: Optional[str] = None
+    business_type: Optional[str] = None
+    activity_field: Optional[str] = None
+    num_employees: Optional[str] = None
+    founded_year: Optional[int] = None
+
+    # ORGANIZATION
+    org_name: Optional[str] = None
+    org_type: Optional[str] = None
+    org_field: Optional[str] = None
+    num_staff: Optional[str] = None
+    org_founded_year: Optional[int] = None
+    reg_number: Optional[str] = None
+
+    # INDIVIDUAL
+    profession: Optional[str] = None
+    experience_years: Optional[str] = None
+    key_skills: Optional[str] = None
+    portfolio_url: Optional[str] = None
+
+    # OTHER
+    role_title: Optional[str] = None
+    interest_field: Optional[str] = None
+    relevant_link: Optional[str] = None
 
     class Config:
         from_attributes = True

@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Query
+import os
+import uuid
+from fastapi import APIRouter, Depends, HTTPException, Request, Query, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional
@@ -6,9 +8,18 @@ from typing import List, Optional
 from app.core.database import SessionLocal
 from app.dependencies.auth import get_current_user, get_tenant_db
 from app.schemas.applications import (
-    ApplicationCreate, ApplicationUpdate, ApplicationResponse
+    ApplicationCreate, ApplicationUpdate, ApplicationResponse, AttachmentResponse
 )
 from app.services import applications as app_service
+
+UPLOAD_DIR = "uploads/attachments"
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
+ALLOWED_TYPES = {
+    "application/pdf",
+    "image/jpeg", "image/jpg", "image/png",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
 
 router = APIRouter(prefix="/applications", tags=["Applications"])
 
@@ -126,5 +137,86 @@ def get_application(
         if user["role"] == "APPLICANT" and str(application.user_id) != user["user_id"]:
             raise HTTPException(status_code=403, detail="Nuk ke leje")
         return application
+    finally:
+        pub_db.close()
+
+
+@router.post("/{application_id}/attachments", response_model=AttachmentResponse, status_code=201)
+async def upload_attachment(
+    application_id: str,
+    file: UploadFile = File(...),
+    user=Depends(get_current_user),
+):
+    """Ngarko dokument mbështetës për aplikimin (PDF, JPG, PNG, DOC — max 5 MB)."""
+    _require_applicant(user)
+
+    # Kontrollo llojin e skedarit
+    if file.content_type not in ALLOWED_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail="Lloji i skedarit nuk lejohet. Lejohen: PDF, JPG, PNG, DOC, DOCX"
+        )
+
+    # Lexo skedarin dhe kontrollo madhësinë
+    contents = await file.read()
+    if len(contents) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail="Skedari është shumë i madh. Maksimumi është 5 MB."
+        )
+
+    # Ruaj skedarin në disk me emër unik
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    ext = os.path.splitext(file.filename or "doc")[1] or ".bin"
+    unique_name = f"{uuid.uuid4()}{ext}"
+    file_path = os.path.join(UPLOAD_DIR, unique_name)
+    with open(file_path, "wb") as f:
+        f.write(contents)
+
+    # Gjej schemën dhe ruaj në DB
+    pub_db = SessionLocal()
+    try:
+        schema_name = app_service.find_schema_for_application(application_id, pub_db)
+        pub_db.execute(text(f'SET search_path TO "{schema_name}", public'))
+
+        # Kontrollo që aplikimi i takon userit
+        application = app_service.get_application(application_id, pub_db)
+        if str(application.user_id) != user["user_id"]:
+            os.remove(file_path)
+            raise HTTPException(status_code=403, detail="Nuk ke leje")
+
+        return app_service.add_attachment(
+            application_id=application_id,
+            file_name=file.filename or unique_name,
+            file_path=f"/uploads/attachments/{unique_name}",
+            file_type=file.content_type,
+            size_bytes=len(contents),
+            db=pub_db,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        pub_db.close()
+
+
+@router.get("/{application_id}/attachments", response_model=List[AttachmentResponse])
+def get_attachments(
+    application_id: str,
+    user=Depends(get_current_user),
+):
+    """Merr listën e dokumenteve të ngarkuara për aplikimin."""
+    pub_db = SessionLocal()
+    try:
+        schema_name = app_service.find_schema_for_application(application_id, pub_db)
+        pub_db.execute(text(f'SET search_path TO "{schema_name}", public'))
+        application = app_service.get_application(application_id, pub_db)
+        # Vetëm pronari ose reviewer mund të shohë dokumentet
+        if user["role"] == "APPLICANT" and str(application.user_id) != user["user_id"]:
+            raise HTTPException(status_code=403, detail="Nuk ke leje")
+        return app_service.get_attachments(application_id, pub_db)
     finally:
         pub_db.close()

@@ -26,6 +26,8 @@ def get_my_profile(current_user: dict, db: Session) -> ProfileResponse:
 
     applicant_profile = db.query(ApplicantProfile).filter(ApplicantProfile.user_id == user_id).first()
 
+    ap = applicant_profile  # shorthand
+
     return ProfileResponse(
         id=str(user.id),
         email=user.email,
@@ -36,7 +38,34 @@ def get_my_profile(current_user: dict, db: Session) -> ProfileResponse:
         address=profile.address if profile else None,
         role=current_user["role"],
         tenant_slug=current_user["tenant_slug"],
-        applicant_type=applicant_profile.applicant_type if applicant_profile else None,
+        # ApplicantProfile
+        applicant_type=ap.applicant_type if ap else None,
+        has_prev_grant=ap.has_prev_grant if ap else None,
+        description=ap.description if ap else None,
+        university=ap.university if ap else None,
+        faculty=ap.faculty if ap else None,
+        study_program=ap.study_program if ap else None,
+        study_level=ap.study_level if ap else None,
+        study_year=ap.study_year if ap else None,
+        study_status=ap.study_status if ap else None,
+        business_name=ap.business_name if ap else None,
+        business_type=ap.business_type if ap else None,
+        activity_field=ap.activity_field if ap else None,
+        num_employees=ap.num_employees if ap else None,
+        founded_year=ap.founded_year if ap else None,
+        org_name=ap.org_name if ap else None,
+        org_type=ap.org_type if ap else None,
+        org_field=ap.org_field if ap else None,
+        num_staff=ap.num_staff if ap else None,
+        org_founded_year=ap.org_founded_year if ap else None,
+        reg_number=ap.reg_number if ap else None,
+        profession=ap.profession if ap else None,
+        experience_years=ap.experience_years if ap else None,
+        key_skills=ap.key_skills if ap else None,
+        portfolio_url=ap.portfolio_url if ap else None,
+        role_title=ap.role_title if ap else None,
+        interest_field=ap.interest_field if ap else None,
+        relevant_link=ap.relevant_link if ap else None,
     )
 
 
@@ -70,6 +99,18 @@ def update_my_profile(data: ProfileUpdateRequest, current_user: dict, db: Sessio
             applicant = ApplicantProfile(user_id=user_id)
             db.add(applicant)
 
+        # Nëse po ndryshon kategoria, pastro fushat specifike të kategorisë së vjetër
+        TYPE_SPECIFIC_FIELDS = [
+            "study_level", "study_status", "study_year", "faculty", "study_program", "university",
+            "business_name", "business_type", "activity_field", "num_employees", "founded_year",
+            "org_name", "org_type", "org_field", "num_staff", "org_founded_year", "reg_number",
+            "profession", "experience_years", "key_skills", "portfolio_url", "cv_path",
+            "role_title", "interest_field", "relevant_link",
+        ]
+        if data.applicant_type is not None and applicant.applicant_type != data.applicant_type:
+            for field in TYPE_SPECIFIC_FIELDS:
+                setattr(applicant, field, None)
+
         for field in APPLICANT_FIELDS:
             value = getattr(data, field)
             if value is not None:
@@ -77,14 +118,4 @@ def update_my_profile(data: ProfileUpdateRequest, current_user: dict, db: Sessio
 
     db.commit()
 
-    return ProfileResponse(
-        id=str(user.id),
-        email=user.email,
-        first_name=user.first_name,
-        last_name=user.last_name,
-        phone=profile.phone,
-        profile_picture=profile.profile_picture,
-        address=profile.address,
-        role=current_user["role"],
-        tenant_slug=current_user["tenant_slug"],
-    )
+    return get_my_profile(current_user, db)

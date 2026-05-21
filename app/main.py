@@ -1,9 +1,14 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from app.middleware.auth import AuthMiddleware
 from app.middleware.tenant import TenantMiddleware
 
 from app.routers import auth, profile, tenants, grants, team, users, applications, criteria, audit
+
+# Sigurohemi që direktoria uploads ekziston
+os.makedirs("uploads/attachments", exist_ok=True)
 
 
 
@@ -21,6 +26,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 app.add_middleware(TenantMiddleware)
 app.add_middleware(AuthMiddleware)

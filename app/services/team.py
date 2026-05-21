@@ -58,9 +58,8 @@ def send_invite(data: InviteRequest, current_user: dict, db: Session) -> dict:
     )
     db.add(invitation)
     db.commit()
-    log_action(db, current_user["user_id"], "INVITE_USER", "invitation",
+    log_action(current_user["user_id"], "INVITE_USER", "invitation",
                tenant_id=str(tenant.id), details={"email": data.email, "role": data.role})
-    db.commit()
 
     # TODO: Celery -- dergo email me invite_token
     return {"message": "Ftesa u dergua", "token": invite_token}

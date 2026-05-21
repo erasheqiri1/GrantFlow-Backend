@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
@@ -27,10 +27,29 @@ class AnswerResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class AttachmentResponse(BaseModel):
+    id:          UUID
+    file_name:   str
+    file_path:   str
+    file_type:   Optional[str] = None
+    size_bytes:  Optional[int] = None
+    uploaded_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class ApplicationCreate(BaseModel):
-    grant_id:         UUID
-    motivation_letter: Optional[str] = None
-    answers:          Optional[List[AnswerCreate]] = []
+    grant_id:              UUID
+    motivation_letter:     Optional[str] = None
+    answers:               Optional[List[AnswerCreate]] = []
+    declaration_confirmed: bool = False
+
+    @field_validator("declaration_confirmed")
+    @classmethod
+    def must_confirm_declaration(cls, v: bool) -> bool:
+        if not v:
+            raise ValueError("Duhet të konfirmosh deklaratën para se të aplikosh")
+        return v
 
 
 class ApplicationUpdate(BaseModel):
@@ -51,5 +70,6 @@ class ApplicationResponse(BaseModel):
     created_at:       datetime
     updated_at:       datetime
     answers:          Optional[List[AnswerResponse]] = []
+    attachments:      Optional[List[AttachmentResponse]] = []
 
     model_config = {"from_attributes": True}

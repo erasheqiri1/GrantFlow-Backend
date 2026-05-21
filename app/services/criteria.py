@@ -32,7 +32,6 @@ def create_criteria(grant_id: str, data: CriteriaCreate, db: Session) -> Criteri
     )
     db.add(criteria)
     db.commit()
-    db.refresh(criteria)
     return criteria
 
 
@@ -53,7 +52,6 @@ def update_criteria(grant_id: str, criteria_id: str, data: CriteriaUpdate, db: S
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(criteria, field, value)
     db.commit()
-    db.refresh(criteria)
     return criteria
 
 
@@ -85,7 +83,6 @@ def create_question(grant_id: str, data: QuestionCreate, db: Session) -> Applica
     )
     db.add(question)
     db.commit()
-    db.refresh(question)
     return question
 
 
@@ -108,7 +105,6 @@ def update_question(grant_id: str, question_id: str, data: QuestionUpdate, db: S
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(question, field, value)
     db.commit()
-    db.refresh(question)
     return question
 
 
