@@ -13,6 +13,7 @@ PUBLIC_PATHS = [
     "/auth/register",
     "/auth/login",
     "/auth/register-org",
+    "/auth/register-org/upload-doc",
     "/auth/forgot-password",
     "/auth/reset-password",
     "/auth/invite/accept",

@@ -38,9 +38,10 @@ def approve_tenant(db: Session, tenant_id: str, user_id: str) -> dict:
 
     tenant.status = TenantStatus.ACTIVE
     tenant.is_active = True
+    db.commit()
     create_tenant_schema(db, tenant.slug)
 
-    log_action(db, user_id, "APPROVE_TENANT", "tenant", tenant_id,
+    log_action(user_id, "APPROVE_TENANT", "tenant", tenant_id,
                details={"org_name": tenant.name})
 
     return {"message": f"Organizata '{tenant.name}' u aprovua."}
@@ -60,7 +61,7 @@ def reject_tenant(db: Session, tenant_id: str, user_id: str) -> dict:
     tenant.status = TenantStatus.REJECTED
     db.commit()
 
-    log_action(db, user_id, "REJECT_TENANT", "tenant", tenant_id,
+    log_action(user_id, "REJECT_TENANT", "tenant", tenant_id,
                details={"org_name": tenant.name})
 
     return {"message": f"Organizata '{tenant.name}' u refuzua."}

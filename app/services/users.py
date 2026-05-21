@@ -70,7 +70,7 @@ def toggle_user_active(db: Session, user_id: str, requester_id: str) -> dict:
     db.commit()
 
     action = "ACTIVATE_USER" if user.is_active else "DEACTIVATE_USER"
-    log_action(db, requester_id, action, "user", user_id,
+    log_action(requester_id, action, "user", user_id,
                details={"email": user.email})
 
     status = "aktivizuar" if user.is_active else "deaktivizuar"
@@ -97,6 +97,9 @@ def create_super_admin(db: Session, data) -> dict:
     role = db.query(Role).filter(Role.name == RoleName.SUPER_ADMIN).first()
     db.add(UserRole(id=uuid.uuid4(), user_id=user.id, role_id=role.id, tenant_id=None))
     db.commit()
+
+    log_action(str(user.id), "CREATE_SUPER_ADMIN", "user", str(user.id),
+               details={"email": data.email})
 
     return {"message": f"Super Admin '{data.email}' u krijua me sukses."}
 

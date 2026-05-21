@@ -102,6 +102,7 @@ def register_org(data: RegisterOrgRequest, db: Session) -> TokenResponse:
             slug=data.org_slug,
             name=data.org_name,
             email=data.email,
+            nipt=data.nipt,
             is_active=False,
             status=TenantStatus.PENDING,
         )

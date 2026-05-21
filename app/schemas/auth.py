@@ -32,10 +32,9 @@ class RegisterOrgRequest(BaseModel):
     password: str
     first_name: str
     last_name: str
-
-    
     org_name: str
     org_slug: str
+    nipt: Optional[str] = None
 
     @field_validator("password")
     def password_strength(cls, v):

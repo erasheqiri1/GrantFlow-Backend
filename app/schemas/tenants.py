@@ -13,6 +13,7 @@ class TenantResponse(BaseModel):
     slug: str
     email: str
     nipt: Optional[str]
+    doc_path: Optional[str] = None
     status: TenantStatus
     is_active: bool
     created_at: datetime
