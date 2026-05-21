@@ -30,15 +30,15 @@ def list_tenants(
 def approve_tenant(
     tenant_id: str,
     db: Session = Depends(get_db),
-    _: dict = Depends(require_super_admin),
+    current_user: dict = Depends(require_super_admin),
 ):
-    return tenant_service.approve_tenant(db, tenant_id)
+    return tenant_service.approve_tenant(db, tenant_id, current_user["user_id"])
 
 
 @router.patch("/{tenant_id}/reject", summary="Refuzo organizatën")
 def reject_tenant(
     tenant_id: str,
     db: Session = Depends(get_db),
-    _: dict = Depends(require_super_admin),
+    current_user: dict = Depends(require_super_admin),
 ):
-    return tenant_service.reject_tenant(db, tenant_id)
+    return tenant_service.reject_tenant(db, tenant_id, current_user["user_id"])

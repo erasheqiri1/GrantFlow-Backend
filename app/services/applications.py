@@ -124,7 +124,7 @@ def create_application(data: ApplicationCreate, user: dict, db: Session) -> Appl
 
     _auto_assign_commissioner(application, db)
     db.commit()
-    log_action(user["user_id"], "SUBMIT_APPLICATION", "application", str(application.id),
+    log_action(db, user["user_id"], "SUBMIT_APPLICATION", "application", str(application.id),
                details={"grant_id": str(gid)})
     _enrich(application, db)
     return application
@@ -318,7 +318,7 @@ def submit_application(application_id: str, user: dict, db: Session) -> Applicat
     _auto_assign_commissioner(app, db)
 
     db.commit()
-    log_action(user["user_id"], "SUBMIT_APPLICATION", "application", str(app.id))
+    log_action(db, user["user_id"], "SUBMIT_APPLICATION", "application", str(app.id))
     return app
 
 

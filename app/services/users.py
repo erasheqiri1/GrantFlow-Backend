@@ -9,6 +9,7 @@ from app.models.public.models import (
     User, UserRole, Role, Tenant,
     UserProfile, ApplicantProfile, RoleName
 )
+from app.services.audit import log_action
 
 
 def _get_role_name(user: User, db: Session) -> Optional[str]:
@@ -67,6 +68,11 @@ def toggle_user_active(db: Session, user_id: str, requester_id: str) -> dict:
 
     user.is_active = not user.is_active
     db.commit()
+
+    action = "ACTIVATE_USER" if user.is_active else "DEACTIVATE_USER"
+    log_action(db, requester_id, action, "user", user_id,
+               details={"email": user.email})
+
     status = "aktivizuar" if user.is_active else "deaktivizuar"
     return {"message": f"Useri u {status} me sukses.", "is_active": user.is_active}
 

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.tenant_schema import create_tenant_schema
 from app.models.public.models import Tenant, TenantStatus
+from app.services.audit import log_action
 
 
 def get_tenants(db: Session, status: Optional[str] = None) -> dict:
@@ -24,7 +25,7 @@ def get_tenants(db: Session, status: Optional[str] = None) -> dict:
     return {"total": len(tenants), "items": tenants}
 
 
-def approve_tenant(db: Session, tenant_id: str) -> dict:
+def approve_tenant(db: Session, tenant_id: str, user_id: str) -> dict:
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Organizata nuk u gjet")
@@ -37,13 +38,15 @@ def approve_tenant(db: Session, tenant_id: str) -> dict:
 
     tenant.status = TenantStatus.ACTIVE
     tenant.is_active = True
-    # create_tenant_schema krijon 17 tabelat dhe bën commit
     create_tenant_schema(db, tenant.slug)
 
-    return {"message": f"Organizata '{tenant.name}' u aprovua. Schema '{tenant.slug}' u krijua me sukses."}
+    log_action(db, user_id, "APPROVE_TENANT", "tenant", tenant_id,
+               details={"org_name": tenant.name})
+
+    return {"message": f"Organizata '{tenant.name}' u aprovua."}
 
 
-def reject_tenant(db: Session, tenant_id: str) -> dict:
+def reject_tenant(db: Session, tenant_id: str, user_id: str) -> dict:
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Organizata nuk u gjet")
@@ -56,5 +59,8 @@ def reject_tenant(db: Session, tenant_id: str) -> dict:
 
     tenant.status = TenantStatus.REJECTED
     db.commit()
+
+    log_action(db, user_id, "REJECT_TENANT", "tenant", tenant_id,
+               details={"org_name": tenant.name})
 
     return {"message": f"Organizata '{tenant.name}' u refuzua."}
