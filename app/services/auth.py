@@ -114,7 +114,7 @@ def register_org(data: RegisterOrgRequest, db: Session) -> TokenResponse:
             password_hash=hash_password(data.password),
             first_name=data.first_name,
             last_name=data.last_name,
-            is_active=True,
+            is_active=False,  # joaktiv deri sa Super Admin ta aprovojë organizatën
         )
         db.add(user)
         db.flush()

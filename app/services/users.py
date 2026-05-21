@@ -6,7 +6,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models.public.models import (
-    User, UserRole, Role, Tenant,
+    User, UserRole, Role, Tenant, TenantStatus,
     UserProfile, ApplicantProfile, RoleName
 )
 from app.services.audit import log_action
@@ -41,6 +41,7 @@ def get_users(db: Session) -> dict:
     users = db.query(User).order_by(User.created_at.desc()).all()
     items = []
     for user in users:
+        tenant = _get_tenant(user, db)
         items.append({
             "id": user.id,
             "email": user.email,
@@ -49,6 +50,7 @@ def get_users(db: Session) -> dict:
             "is_active": user.is_active,
             "role": _get_role_name(user, db),
             "created_at": user.created_at,
+            "tenant_status": tenant.status.value if tenant else None,
         })
     return {"total": len(items), "items": items}
 
@@ -65,6 +67,20 @@ def toggle_user_active(db: Session, user_id: str, requester_id: str) -> dict:
     user = db.query(User).filter(User.id == uid).first()
     if not user:
         raise HTTPException(status_code=404, detail="Useri nuk u gjet")
+
+    # blloko toggle nëse organizata e user-it është ende në pritje aprovimi
+    user_role_with_tenant = (
+        db.query(UserRole)
+        .filter(UserRole.user_id == uid, UserRole.tenant_id.isnot(None))
+        .first()
+    )
+    if user_role_with_tenant:
+        tenant = db.query(Tenant).filter(Tenant.id == user_role_with_tenant.tenant_id).first()
+        if tenant and tenant.status == TenantStatus.PENDING:
+            raise HTTPException(
+                status_code=400,
+                detail="Nuk mund të ndryshoni statusin e një user-i ndërkohë që organizata e tij është në pritje aprovimi."
+            )
 
     user.is_active = not user.is_active
     db.commit()
