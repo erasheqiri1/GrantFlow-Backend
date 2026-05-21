@@ -3,10 +3,11 @@ from typing import Optional
 
 import bcrypt
 from fastapi import HTTPException
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.public.models import (
-    User, UserRole, Role, Tenant,
+    User, UserRole, Role, Tenant, TenantStatus,
     UserProfile, ApplicantProfile, RoleName
 )
 from app.services.audit import log_action
@@ -41,6 +42,19 @@ def get_users(db: Session) -> dict:
     users = db.query(User).order_by(User.created_at.desc()).all()
     items = []
     for user in users:
+        # SQL direkt për tenant_status — shmang çdo problem me ORM/enum
+        row = db.execute(
+            text("""
+                SELECT t.status::text
+                FROM public.user_roles ur
+                JOIN public.tenants t ON t.id = ur.tenant_id
+                WHERE ur.user_id = :uid
+                  AND ur.tenant_id IS NOT NULL
+                LIMIT 1
+            """),
+            {"uid": str(user.id)}
+        ).fetchone()
+
         items.append({
             "id": user.id,
             "email": user.email,
@@ -49,6 +63,7 @@ def get_users(db: Session) -> dict:
             "is_active": user.is_active,
             "role": _get_role_name(user, db),
             "created_at": user.created_at,
+            "tenant_status": row[0] if row else None,
         })
     return {"total": len(items), "items": items}
 
