@@ -26,6 +26,14 @@ def list_tenants(
     return tenant_service.get_tenants(db, status)
 
 
+@router.get("/stats", summary="Statistikat globale të platformës")
+def platform_stats(
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_super_admin),
+):
+    return tenant_service.get_platform_stats(db)
+
+
 @router.patch("/{tenant_id}/approve", summary="Aprovo organizatën")
 def approve_tenant(
     tenant_id: str,

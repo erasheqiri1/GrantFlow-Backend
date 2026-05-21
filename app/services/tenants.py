@@ -1,11 +1,43 @@
 from typing import Optional
 
 from fastapi import HTTPException
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.db.tenant_schema import create_tenant_schema
-from app.models.public.models import Tenant, TenantStatus
+from app.models.public.models import Tenant, TenantStatus, User, UserRole, Role, RoleName
 from app.services.audit import log_action
+
+
+def get_platform_stats(db: Session) -> dict:
+    """Numëron grante dhe aplikime nga të gjitha tenant-schemat aktive."""
+    active_tenants = db.query(Tenant).filter(Tenant.status == TenantStatus.ACTIVE).all()
+
+    total_grants       = 0
+    total_applications = 0
+
+    for tenant in active_tenants:
+        schema = f"tenant_{tenant.slug.replace('-', '_')}"
+        try:
+            g = db.execute(
+                text(f'SELECT COUNT(*) FROM "{schema}".grants WHERE status != :s'),
+                {"s": "DRAFT"},
+            ).scalar() or 0
+            total_grants += g
+        except Exception:
+            pass
+        try:
+            a = db.execute(
+                text(f'SELECT COUNT(*) FROM "{schema}".applications'),
+            ).scalar() or 0
+            total_applications += a
+        except Exception:
+            pass
+
+    return {
+        "total_grants":       total_grants,
+        "total_applications": total_applications,
+    }
 
 
 def get_tenants(db: Session, status: Optional[str] = None) -> dict:
@@ -38,6 +70,19 @@ def approve_tenant(db: Session, tenant_id: str, user_id: str) -> dict:
 
     tenant.status = TenantStatus.ACTIVE
     tenant.is_active = True
+
+    # aktivizo ORG_ADMIN-in e kësaj organizate
+    org_admin_role = (
+        db.query(UserRole)
+        .join(Role, Role.id == UserRole.role_id)
+        .filter(UserRole.tenant_id == tenant.id, Role.name == RoleName.ORG_ADMIN)
+        .first()
+    )
+    if org_admin_role:
+        org_admin_user = db.query(User).filter(User.id == org_admin_role.user_id).first()
+        if org_admin_user:
+            org_admin_user.is_active = True
+
     db.commit()
     create_tenant_schema(db, tenant.slug)
 
@@ -59,6 +104,19 @@ def reject_tenant(db: Session, tenant_id: str, user_id: str) -> dict:
         )
 
     tenant.status = TenantStatus.REJECTED
+
+    # çaktivizo ORG_ADMIN-in e kësaj organizate
+    org_admin_role = (
+        db.query(UserRole)
+        .join(Role, Role.id == UserRole.role_id)
+        .filter(UserRole.tenant_id == tenant.id, Role.name == RoleName.ORG_ADMIN)
+        .first()
+    )
+    if org_admin_role:
+        org_admin_user = db.query(User).filter(User.id == org_admin_role.user_id).first()
+        if org_admin_user:
+            org_admin_user.is_active = False
+
     db.commit()
 
     log_action(user_id, "REJECT_TENANT", "tenant", tenant_id,
