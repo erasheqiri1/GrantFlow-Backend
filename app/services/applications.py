@@ -385,12 +385,22 @@ def assign_application(application_id: str, commissioner_id: str, db: Session) -
 def start_review(application_id: str, user: dict, db: Session) -> Application:
     app = get_application(application_id, db)
     if app.status != ApplicationStatus.SUBMITTED:
-        # Nëse është tashmë UNDER_REVIEW ose më tej, kthe pa ndryshim
         _enrich(app, db)
         return app
     app.status = ApplicationStatus.UNDER_REVIEW
     db.commit()
     log_action(user["user_id"], "START_REVIEW", "application", str(app.id))
+
+
+def reset_to_submitted(application_id: str, user: dict, db: Session) -> Application:
+    app = get_application(application_id, db)
+    if app.status != ApplicationStatus.UNDER_REVIEW:
+        raise HTTPException(status_code=400, detail="Vetëm aplikimet 'Në shqyrtim' mund të kthehen")
+    app.status = ApplicationStatus.SUBMITTED
+    db.commit()
+    log_action(user["user_id"], "RESET_TO_SUBMITTED", "application", str(app.id))
+    _enrich(app, db)
+    return app
     _enrich(app, db)
     return app
 
