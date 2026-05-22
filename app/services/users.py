@@ -1,11 +1,14 @@
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import bcrypt
+import jwt
 from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.public.models import (
     User, UserRole, Role, Tenant, TenantStatus,
     UserProfile, ApplicantProfile, RoleName
@@ -117,6 +120,36 @@ def create_super_admin(db: Session, data) -> dict:
                details={"email": data.email})
 
     return {"message": f"Super Admin '{data.email}' u krijua me sukses."}
+
+
+def invite_super_admin(db: Session, email: str, requester_id: str) -> dict:
+    """Dërgon ftesë me email për Super Admin të ri (Celery background task)."""
+    existing = db.query(User).filter(User.email == email).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Ky email ekziston tashmë")
+
+    # Krijo token invitation (skadon pas 48 orësh)
+    token = jwt.encode(
+        {
+            "email": email,
+            "role":  "SUPER_ADMIN",
+            "tenant_slug": None,
+            "exp":   datetime.now(timezone.utc) + timedelta(hours=48),
+        },
+        settings.SECRET_KEY,
+        algorithm="HS256",
+    )
+
+    invite_link = f"{settings.FRONTEND_URL}/accept-invite?token={token}"
+
+    # Celery task — dërgon email në background
+    from app.tasks.email import send_invitation_email
+    send_invitation_email.delay(email, invite_link, "SUPER_ADMIN")
+
+    log_action(requester_id, "INVITE_SUPER_ADMIN", "user", None,
+               details={"email": email})
+
+    return {"message": f"Ftesa u dërgua te '{email}'. Linku skadon pas 48 orësh."}
 
 
 def get_user(db: Session, user_id: str) -> dict:

@@ -10,11 +10,19 @@ class Settings(BaseSettings):
 
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_HOURS: int = 24
-    SUPER_ADMIN_EMAIL: str
-    SUPER_ADMIN_PASSWORD: str
 
     SUPER_ADMIN_EMAIL: str = ""
     SUPER_ADMIN_PASSWORD: str = ""
+
+    # Email (Gmail SMTP)
+    MAIL_USERNAME: str = ""
+    MAIL_PASSWORD: str = ""   # Gmail App Password
+    MAIL_FROM:     str = ""
+    MAIL_SERVER:   str = "smtp.gmail.com"
+    MAIL_PORT:     int = 587
+
+    # Frontend URL (për invitation links)
+    FRONTEND_URL:  str = "http://localhost:5173"
 
     class Config:
         env_file = ".env"

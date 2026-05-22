@@ -23,12 +23,25 @@ class CreateSuperAdminRequest(BaseModel):
     last_name: str
 
 
+class InviteSuperAdminRequest(BaseModel):
+    email: EmailStr
+
+
 @router.get("", response_model=UserListResponse, summary="Lista e të gjithë userëve")
 def list_users(
     db: Session = Depends(get_db),
     _: dict = Depends(require_super_admin),
 ):
     return users_service.get_users(db)
+
+
+@router.post("/invite-super-admin", summary="Dërgo ftesë email për Super Admin të ri")
+def invite_super_admin(
+    data: InviteSuperAdminRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_super_admin),
+):
+    return users_service.invite_super_admin(db, data.email, current_user["user_id"])
 
 
 @router.post("/super-admin", summary="Krijo Super Admin të ri")
