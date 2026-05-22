@@ -58,8 +58,12 @@ def send_invite(data: InviteRequest, current_user: dict, db: Session) -> dict:
     db.add(invitation)
     db.commit()
 
-    # TODO: Celery -- dergo email me invite_token
-    return {"message": "Ftesa u dergua", "token": invite_token}
+    # Celery task — dërgon email me link ftese në background
+    invite_link = f"{settings.FRONTEND_URL}/accept-invite?token={invite_token}"
+    from app.tasks.email import send_invitation_email
+    send_invitation_email.delay(data.email, invite_link, data.role, tenant.name)
+
+    return {"message": "Ftesa u dërgua"}
 
 
 def get_team(current_user: dict, db: Session) -> list[TeamMemberResponse]:
