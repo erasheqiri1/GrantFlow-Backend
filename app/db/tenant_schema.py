@@ -106,17 +106,18 @@ CREATE TABLE IF NOT EXISTS "{schema}".attachments (
 
 -- 9. ai_scores (1:1 me application)
 CREATE TABLE IF NOT EXISTS "{schema}".ai_scores (
-    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    application_id UUID NOT NULL REFERENCES "{schema}".applications(id) ON DELETE CASCADE,
-    ai_score       NUMERIC(5, 2),
-    justification  TEXT,
-    final_score    NUMERIC(5, 2),
-    rank_position  INTEGER,
-    model_used     VARCHAR(100),
-    is_cached      BOOLEAN NOT NULL DEFAULT FALSE,
-    scored_at      TIMESTAMPTZ,
-    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    application_id     UUID NOT NULL REFERENCES "{schema}".applications(id) ON DELETE CASCADE,
+    ai_score           NUMERIC(5, 2),
+    justification      TEXT,
+    commissioner_score NUMERIC(5, 2),
+    final_score        NUMERIC(5, 2),
+    rank_position      INTEGER,
+    model_used         VARCHAR(100),
+    is_cached          BOOLEAN NOT NULL DEFAULT FALSE,
+    scored_at          TIMESTAMPTZ,
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT uq_ai_score_application UNIQUE (application_id)
 );
 
