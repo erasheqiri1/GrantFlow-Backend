@@ -437,9 +437,12 @@ def accept_invite(data: InviteAcceptRequest, db: Session) -> TokenResponse:
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=400, detail="Token i pavlefshëm")
 
-    tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
-    if not tenant:
-        raise HTTPException(status_code=404, detail="Organizata nuk u gjet")
+    # Gjej tenant nëse ka slug (SUPER_ADMIN nuk ka tenant)
+    tenant = None
+    if tenant_slug:
+        tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Organizata nuk u gjet")
 
     # kontrollo nëse email ekziston
     existing = db.query(User).filter(User.email == invite_email).first()
@@ -458,7 +461,11 @@ def accept_invite(data: InviteAcceptRequest, db: Session) -> TokenResponse:
         db.flush()
 
         role = db.query(Role).filter(Role.name == invite_role).first()
-        user_role = UserRole(user_id=user.id, role_id=role.id, tenant_id=tenant.id)
+        user_role = UserRole(
+            user_id=user.id,
+            role_id=role.id,
+            tenant_id=tenant.id if tenant else None,
+        )
         db.add(user_role)
         db.commit()
     except Exception:
