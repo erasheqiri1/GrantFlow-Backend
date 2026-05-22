@@ -385,10 +385,8 @@ def forgot_password(data: ForgotPasswordRequest, db: Session) -> dict:
     db.add(reset_token)
     db.commit()
 
-    from app.tasks.email import send_reset_password_email
-    from app.core.config import settings
-    reset_link = f"{settings.FRONTEND_URL}/reset-password?token={token}"
-    send_reset_password_email.delay(user.email, reset_link)
+    # TODO: dërgo email me token (Celery task)
+    # send_reset_email.delay(user.email, token)
 
     return {"message": "Nëse email ekziston, do të marrësh udhëzime."}
 
