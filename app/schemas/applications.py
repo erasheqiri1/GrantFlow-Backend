@@ -19,10 +19,11 @@ class AnswerCreate(BaseModel):
 
 
 class AnswerResponse(BaseModel):
-    id:          UUID
-    question_id: UUID
-    answer_text: Optional[str]
-    created_at:  datetime
+    id:            UUID
+    question_id:   UUID
+    question_text: Optional[str] = None
+    answer_text:   Optional[str]
+    created_at:    datetime
 
     model_config = {"from_attributes": True}
 
@@ -57,6 +58,15 @@ class ApplicationUpdate(BaseModel):
     answers:          Optional[List[AnswerCreate]] = None
 
 
+class CriteriaInfo(BaseModel):
+    id:          UUID
+    name:        str
+    weight:      float
+    is_required: bool
+
+    model_config = {"from_attributes": True}
+
+
 class ApplicationResponse(BaseModel):
     id:               UUID
     grant_id:         UUID
@@ -74,6 +84,7 @@ class ApplicationResponse(BaseModel):
     updated_at:       datetime
     answers:          Optional[List[AnswerResponse]] = []
     attachments:      Optional[List[AttachmentResponse]] = []
+    criteria:         Optional[List[CriteriaInfo]] = []
 
     model_config = {"from_attributes": True}
 

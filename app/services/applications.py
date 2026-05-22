@@ -167,9 +167,52 @@ def _enrich_with_user_info(app: Application, db: Session) -> None:
         app.__dict__['user_name'] = None
 
 
+def _enrich_with_answers(app: Application, db: Session) -> None:
+    """Shton përgjigjet e aplikantit me tekstin e pyetjes si atribut dinamik."""
+    try:
+        from app.models.tenant.models import ApplicationQuestion
+        rows = db.execute(text("""
+            SELECT aa.id, aa.question_id, aa.answer_text, aa.created_at,
+                   aq.question_text
+            FROM application_answers aa
+            LEFT JOIN application_questions aq ON aq.id = aa.question_id
+            WHERE aa.application_id = :aid
+            ORDER BY aq.order_no ASC
+        """), {"aid": str(app.id)}).fetchall()
+
+        enriched = []
+        for r in rows:
+            obj = ApplicationAnswer.__new__(ApplicationAnswer)
+            obj.__dict__.update({
+                'id':            r.id,
+                'question_id':   r.question_id,
+                'answer_text':   r.answer_text,
+                'created_at':    r.created_at,
+                'question_text': r.question_text,
+            })
+            enriched.append(obj)
+        app.__dict__['answers'] = enriched
+    except Exception:
+        app.__dict__['answers'] = []
+
+
+def _enrich_with_criteria(app: Application, db: Session) -> None:
+    """Shton kriteret e grantit si atribut dinamik — ndihmon komisionerin gjatë vlerësimit."""
+    try:
+        from app.models.tenant.models import Criteria
+        criteria = db.query(Criteria).filter(
+            Criteria.grant_id == app.grant_id
+        ).all()
+        app.__dict__['criteria'] = criteria
+    except Exception:
+        app.__dict__['criteria'] = []
+
+
 def _enrich(app: Application, db: Session) -> None:
     _enrich_with_grant_title(app, db)
     _enrich_with_attachments(app, db)
+    _enrich_with_answers(app, db)
+    _enrich_with_criteria(app, db)
     _enrich_with_user_info(app, db)
 
 
