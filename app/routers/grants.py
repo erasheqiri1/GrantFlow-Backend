@@ -141,3 +141,20 @@ def close_grant(
 ):
     _require_org_admin(user)
     return grant_service.close_grant(grant_id, user, db)
+
+
+@router.post("/{grant_id}/finalize")
+def finalize_grant(
+    grant_id: str,
+    user=Depends(get_current_user),
+    db: Session = Depends(get_tenant_db),
+):
+    """
+    ORG_ADMIN mbyll zgjedhjen:
+    - Rendit aplikimet e dorëzuara/në shqyrtim sipas final_score DESC, submitted_at ASC
+    - Top N (max_applicants) → APPROVED
+    - Të tjerët → REJECTED
+    - Shkruan rank_position
+    """
+    _require_org_admin(user)
+    return grant_service.finalize_grant(grant_id, user, db)

@@ -8,13 +8,19 @@ from typing import List, Optional
 from app.core.database import SessionLocal
 from app.dependencies.auth import get_current_user, get_tenant_db
 from app.schemas.applications import (
-    ApplicationCreate, ApplicationUpdate, ApplicationResponse, AttachmentResponse
+    ApplicationCreate, ApplicationUpdate, ApplicationResponse,
+    AttachmentResponse, AIScoreResponse, CommissionerScoreRequest
 )
+from app.services import ai_scoring
 from pydantic import BaseModel
 from typing import Optional as Opt
 
 class DecisionRequest(BaseModel):
     reason: Opt[str] = None
+
+class AssignRequest(BaseModel):
+    commissioner_id: str
+
 from app.services import applications as app_service
 
 UPLOAD_DIR = "uploads/attachments"
@@ -44,6 +50,12 @@ def _require_commissioner(user: dict):
     """Vetëm COMMISSIONER mund të marrë vendime (aprovim/refuzim)."""
     if user["role"] != "COMMISSIONER":
         raise HTTPException(status_code=403, detail="Vetëm COMMISSIONER mund të marrë vendime")
+
+
+def _require_org_admin(user: dict):
+    """Vetëm ORG_ADMIN mund të caktojë komisionerë."""
+    if user["role"] != "ORG_ADMIN":
+        raise HTTPException(status_code=403, detail="Vetëm ORG_ADMIN mund të kryejë këtë veprim")
 
 
 @router.post("", response_model=ApplicationResponse, status_code=201)
@@ -291,5 +303,68 @@ def get_attachments(
         if user["role"] == "APPLICANT" and str(application.user_id) != user["user_id"]:
             raise HTTPException(status_code=403, detail="Nuk ke leje")
         return app_service.get_attachments(application_id, pub_db)
+    finally:
+        pub_db.close()
+
+
+@router.post("/{application_id}/score", status_code=202)
+def score_application(
+    application_id: str,
+    user=Depends(get_current_user),
+):
+    """Nis vlerësimin AI në background (Celery). Kthen 202 menjëherë."""
+    _require_reviewer(user)
+    pub_db = SessionLocal()
+    try:
+        schema_name = app_service.find_schema_for_application(application_id, pub_db)
+        pub_db.execute(text(f'SET search_path TO "{schema_name}", public'))
+
+        # Nëse ka cache — kthe direkt
+        existing = ai_scoring.get_score(application_id, pub_db)
+        if existing and existing.ai_score is not None:
+            existing.is_cached = True
+            pub_db.commit()
+            return {"status": "cached", "message": "Score ekziston tashmë"}
+
+        # Queue Celery task — AI punon në background
+        from app.tasks.ai_tasks import score_application_task
+        score_application_task.delay(application_id, schema_name)
+        return {"status": "processing", "message": "Vlerësimi AI u nis. Rifresko pas 5 sekondash."}
+    finally:
+        pub_db.close()
+
+
+@router.get("/{application_id}/score", response_model=AIScoreResponse)
+def get_score(
+    application_id: str,
+    user=Depends(get_current_user),
+):
+    """Merr rezultatin e AI për aplikimin (pollon derisa të jetë gati)."""
+    _require_reviewer(user)
+    pub_db = SessionLocal()
+    try:
+        schema_name = app_service.find_schema_for_application(application_id, pub_db)
+        pub_db.execute(text(f'SET search_path TO "{schema_name}", public'))
+        score = ai_scoring.get_score(application_id, pub_db)
+        if not score:
+            raise HTTPException(status_code=404, detail="Nuk ka vlerësim AI akoma")
+        return score
+    finally:
+        pub_db.close()
+
+
+@router.patch("/{application_id}/commissioner-score", response_model=AIScoreResponse)
+def submit_commissioner_score(
+    application_id: str,
+    data: CommissionerScoreRequest,
+    user=Depends(get_current_user),
+):
+    """Komisioner ose ORG_ADMIN jep pikët (0-100). Rillogarit final_score."""
+    _require_reviewer(user)
+    pub_db = SessionLocal()
+    try:
+        schema_name = app_service.find_schema_for_application(application_id, pub_db)
+        pub_db.execute(text(f'SET search_path TO "{schema_name}", public'))
+        return ai_scoring.set_commissioner_score(application_id, data.score, pub_db)
     finally:
         pub_db.close()

@@ -190,15 +190,16 @@ class AIScore(Base):
         {"extend_existing": True}
     )
 
-    id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    application_id = Column(UUID(as_uuid=True), ForeignKey("applications.id", ondelete="CASCADE"), nullable=False)
-    ai_score       = Column(Numeric(5, 2), nullable=True)
-    justification  = Column(Text,          nullable=True)
-    final_score    = Column(Numeric(5, 2), nullable=True)
-    rank_position  = Column(Integer,       nullable=True)
-    model_used     = Column(String(100),   nullable=True)
-    is_cached      = Column(Boolean, default=False, nullable=False)
-    scored_at      = Column(DateTime(timezone=True), nullable=True)
+    id                = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    application_id    = Column(UUID(as_uuid=True), ForeignKey("applications.id", ondelete="CASCADE"), nullable=False)
+    ai_score          = Column(Numeric(5, 2), nullable=True)
+    justification     = Column(Text,          nullable=True)
+    commissioner_score = Column(Numeric(5, 2), nullable=True)   # 0-100, i dhënë nga komisioner
+    final_score       = Column(Numeric(5, 2), nullable=True)    # (ai×w) + (comm×(1-w))
+    rank_position     = Column(Integer,       nullable=True)
+    model_used        = Column(String(100),   nullable=True)
+    is_cached         = Column(Boolean, default=False, nullable=False)
+    scored_at         = Column(DateTime(timezone=True), nullable=True)
     created_at     = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at     = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
                             onupdate=lambda: datetime.now(timezone.utc), nullable=False)

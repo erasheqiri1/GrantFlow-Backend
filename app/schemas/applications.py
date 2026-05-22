@@ -64,6 +64,7 @@ class ApplicationResponse(BaseModel):
     user_id:          UUID
     user_email:       Optional[str] = None
     user_name:        Optional[str] = None
+    assigned_to:      Optional[UUID] = None
     status:           ApplicationStatusEnum
     motivation_letter: Optional[str]
     submitted_at:     Optional[datetime]
@@ -75,3 +76,21 @@ class ApplicationResponse(BaseModel):
     attachments:      Optional[List[AttachmentResponse]] = []
 
     model_config = {"from_attributes": True}
+
+class AIScoreResponse(BaseModel):
+    id:                 UUID
+    application_id:     UUID
+    ai_score:           Optional[float] = None
+    justification:      Optional[str]   = None
+    commissioner_score: Optional[float] = None
+    final_score:        Optional[float] = None
+    rank_position:      Optional[int]   = None
+    model_used:         Optional[str]   = None
+    scored_at:          Optional[datetime] = None
+    is_cached:          bool = False
+
+    model_config = {"from_attributes": True}
+
+
+class CommissionerScoreRequest(BaseModel):
+    score: float  # 0-100
