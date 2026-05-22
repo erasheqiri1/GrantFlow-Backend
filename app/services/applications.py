@@ -6,7 +6,7 @@ from sqlalchemy import text
 
 from app.models.tenant.models import (
     Application, ApplicationAnswer, ApplicationStatus,
-    Grant, GrantStatus, CommissionerWorkload, Attachment
+    Grant, GrantStatus, CommissionerWorkload, Attachment, Notification, NotificationType
 )
 from app.models.public.models import Tenant, TenantStatus, UserRole, ApplicantProfile
 from app.schemas.applications import ApplicationCreate, ApplicationUpdate
@@ -401,8 +401,16 @@ def approve_application(application_id: str, user: dict, db: Session) -> Applica
         raise HTTPException(status_code=400, detail="Aplikimi nuk mund të aprovohet në këtë status")
     app.status = ApplicationStatus.APPROVED
     app.decided_at = datetime.now(timezone.utc)
-    db.commit()
     grant = db.query(Grant).filter(Grant.id == app.grant_id).first()
+    db.add(Notification(
+        id=uuid.uuid4(),
+        user_id=app.user_id,
+        title="Aplikimi u aprovua",
+        message=f"Aplikimi juaj për grantin '{grant.title if grant else ''}' u aprovua!",
+        type=NotificationType.APPLICATION_STATUS,
+        is_read=False,
+    ))
+    db.commit()
     log_action(user["user_id"], "APPROVE_APPLICATION", "application", str(app.id),
                details={"grant_title": grant.title if grant else None})
     _enrich(app, db)
@@ -416,8 +424,16 @@ def reject_application(application_id: str, reason: str, user: dict, db: Session
     app.status = ApplicationStatus.REJECTED
     app.decided_at = datetime.now(timezone.utc)
     app.decision_reason = reason or None
-    db.commit()
     grant = db.query(Grant).filter(Grant.id == app.grant_id).first()
+    db.add(Notification(
+        id=uuid.uuid4(),
+        user_id=app.user_id,
+        title="Aplikimi u refuzua",
+        message=f"Aplikimi juaj për grantin '{grant.title if grant else ''}' u refuzua. {reason or ''}".strip(),
+        type=NotificationType.APPLICATION_STATUS,
+        is_read=False,
+    ))
+    db.commit()
     log_action(user["user_id"], "REJECT_APPLICATION", "application", str(app.id),
                details={"grant_title": grant.title if grant else None, "reason": reason})
     _enrich(app, db)
