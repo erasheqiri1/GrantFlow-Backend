@@ -63,10 +63,20 @@ def send_invite(data: InviteRequest, current_user: dict, db: Session) -> dict:
 
     # Celery task — dërgon email me link ftese në background
     invite_link = f"{settings.FRONTEND_URL}/accept-invite?token={invite_token}"
-    from app.tasks.email import send_invitation_email
-    send_invitation_email.delay(data.email, invite_link, data.role, tenant.name)
+    email_sent = False
+    try:
+        from app.tasks.email import send_invitation_email
+        send_invitation_email.delay(data.email, invite_link, data.role, tenant.name)
+        email_sent = True
+    except Exception:
+        # Redis/Celery mund të mos jetë aktiv — ftesa është ruajtur, linku mund të ndahet manualisht
+        pass
 
-    return {"message": "Ftesa u dërgua"}
+    return {
+        "message": "Ftesa u gjenerua" if not email_sent else "Ftesa u dërgua me email",
+        "token": invite_token,
+        "invite_link": invite_link,
+    }
 
 
 def get_team(current_user: dict, db: Session) -> list[TeamMemberResponse]:

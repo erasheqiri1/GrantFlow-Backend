@@ -17,6 +17,14 @@ def require_super_admin(current_user: dict = Depends(get_current_user)) -> dict:
     return current_user
 
 
+@router.get("/stats", summary="Statistika të platformës (grants, aplikime, tenant)")
+def platform_stats(
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_super_admin),
+):
+    return tenant_service.get_platform_stats(db)
+
+
 @router.get("", response_model=TenantListResponse, summary="Lista e të gjitha organizatave")
 def list_tenants(
     status: Optional[str] = Query(None, description="PENDING | ACTIVE | REJECTED"),

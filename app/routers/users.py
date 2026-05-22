@@ -10,6 +10,10 @@ from app.services import users as users_service
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
+class InviteSuperAdminRequest(BaseModel):
+    email: EmailStr
+
+
 def require_super_admin(current_user: dict = Depends(get_current_user)) -> dict:
     if current_user["role"] != "SUPER_ADMIN":
         raise HTTPException(status_code=403, detail="Vetëm SUPER_ADMIN ka qasje")
@@ -69,3 +73,21 @@ def get_user(
     _: dict = Depends(require_super_admin),
 ):
     return users_service.get_user(db, user_id)
+
+
+@router.patch("/{user_id}/toggle-active", summary="Aktivizo / Deaktivizo userin")
+def toggle_user_active(
+    user_id: str,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_super_admin),
+):
+    return users_service.toggle_user_active(db, user_id)
+
+
+@router.post("/invite-super-admin", summary="Dërgo ftesë për Super Admin të ri")
+def invite_super_admin(
+    body: InviteSuperAdminRequest,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_super_admin),
+):
+    return users_service.invite_super_admin(db, body.email)

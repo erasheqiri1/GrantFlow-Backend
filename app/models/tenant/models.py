@@ -260,7 +260,7 @@ class Invitation(Base):
     email       = Column(String(200), nullable=False)
     role_id     = Column(UUID(as_uuid=True), ForeignKey("public.roles.id"), nullable=False)
     invited_by  = Column(UUID(as_uuid=True), ForeignKey("public.users.id"), nullable=False)
-    token       = Column(String(200), unique=True, nullable=False)
+    token       = Column(Text, unique=True, nullable=False)
     expires_at  = Column(DateTime(timezone=True), nullable=False)
     is_used     = Column(Boolean, default=False, nullable=False)
     accepted_at = Column(DateTime(timezone=True), nullable=True)

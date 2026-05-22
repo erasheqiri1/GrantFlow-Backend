@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     SUPER_ADMIN_EMAIL: str = ""
     SUPER_ADMIN_PASSWORD: str = ""
 
+<<<<<<< Updated upstream
     # Email (Gmail SMTP)
     MAIL_USERNAME: str = ""
     MAIL_PASSWORD: str = ""   # Gmail App Password
@@ -23,6 +24,15 @@ class Settings(BaseSettings):
 
     # Frontend URL (për invitation links)
     FRONTEND_URL:  str = "http://localhost:5173"
+=======
+    MAIL_USERNAME: str = ""
+    MAIL_PASSWORD: str = ""
+    MAIL_FROM: str = ""
+    MAIL_SERVER: str = "smtp.gmail.com"
+    MAIL_PORT: int = 587
+
+    FRONTEND_URL: str = "http://localhost:5173"
+>>>>>>> Stashed changes
 
     class Config:
         env_file = ".env"

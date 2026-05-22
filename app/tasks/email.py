@@ -6,6 +6,7 @@ from app.core.celery_app import celery_app
 from app.core.config import settings
 
 
+<<<<<<< Updated upstream
 def _send_smtp(to: str, subject: str, html: str) -> None:
     """Dërgon email direkt nëpërmjet Gmail SMTP."""
     msg = MIMEMultipart("alternative")
@@ -66,3 +67,73 @@ def send_invitation_email(self, to: str, invite_link: str, role: str, org_name: 
 
     except Exception as exc:
         raise self.retry(exc=exc, countdown=60)  # riprovon pas 60 sekondave
+=======
+@celery_app.task(bind=True, max_retries=3)
+def send_invitation_email(self, to: str, invite_link: str, role: str, org_name: str):
+    role_labels = {
+        "SUPER_ADMIN": "Super Administrator",
+        "ORG_ADMIN": "Administrator Organizate",
+        "COMMISSIONER": "Komisioner",
+        "REVIEWER": "Recensues",
+    }
+    role_label = role_labels.get(role, role)
+
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <style>
+        body {{ font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 0; }}
+        .container {{ max-width: 600px; margin: 40px auto; background: white; border-radius: 8px;
+                      box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden; }}
+        .header {{ background: #2563eb; color: white; padding: 30px; text-align: center; }}
+        .header h1 {{ margin: 0; font-size: 24px; }}
+        .body {{ padding: 30px; color: #333; }}
+        .body p {{ line-height: 1.6; }}
+        .btn {{ display: inline-block; background: #2563eb; color: white; padding: 14px 28px;
+                border-radius: 6px; text-decoration: none; font-weight: bold; margin: 20px 0; }}
+        .footer {{ padding: 20px 30px; background: #f9f9f9; font-size: 12px; color: #888;
+                   text-align: center; border-top: 1px solid #eee; }}
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>GrantFlow</h1>
+          <p style="margin:8px 0 0; opacity:0.9;">Ftesë për t'u bashkuar</p>
+        </div>
+        <div class="body">
+          <p>Përshëndetje,</p>
+          <p>Jeni ftuar të bashkoheni me <strong>{org_name}</strong> si <strong>{role_label}</strong> në platformën GrantFlow.</p>
+          <p>Klikoni butonin më poshtë për të aktivizuar llogarinë tuaj. Ftesa është e vlefshme për <strong>7 ditë</strong>.</p>
+          <p style="text-align: center;">
+            <a href="{invite_link}" class="btn">Aktivizo Llogarinë</a>
+          </p>
+          <p>Nëse nuk mund të klikoni butonin, kopjojeni këtë link në shfletues:</p>
+          <p style="word-break: break-all; font-size: 13px; color: #555;">{invite_link}</p>
+          <p>Nëse nuk e keni kërkuar këtë ftesë, mund ta injoroni këtë email.</p>
+        </div>
+        <div class="footer">
+          &copy; 2025 GrantFlow &mdash; Platforma e Menaxhimit të Granteve
+        </div>
+      </div>
+    </body>
+    </html>
+    """
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = f"Ftesë për GrantFlow — {org_name}"
+    msg["From"] = settings.MAIL_FROM
+    msg["To"] = to
+    msg.attach(MIMEText(html, "html"))
+
+    try:
+        with smtplib.SMTP(settings.MAIL_SERVER, settings.MAIL_PORT) as server:
+            server.ehlo()
+            server.starttls()
+            server.login(settings.MAIL_USERNAME, settings.MAIL_PASSWORD)
+            server.sendmail(settings.MAIL_FROM, to, msg.as_string())
+    except Exception as exc:
+        raise self.retry(exc=exc, countdown=60)
+>>>>>>> Stashed changes

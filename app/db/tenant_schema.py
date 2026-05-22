@@ -160,7 +160,7 @@ CREATE TABLE IF NOT EXISTS "{schema}".invitations (
     email       VARCHAR(200) NOT NULL,
     role_id     UUID NOT NULL REFERENCES public.roles(id),
     invited_by  UUID NOT NULL REFERENCES public.users(id),
-    token       VARCHAR(200) NOT NULL UNIQUE,
+    token       TEXT NOT NULL UNIQUE,
     expires_at  TIMESTAMPTZ NOT NULL,
     is_used     BOOLEAN NOT NULL DEFAULT FALSE,
     accepted_at TIMESTAMPTZ,

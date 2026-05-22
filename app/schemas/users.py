@@ -13,7 +13,11 @@ class UserResponse(BaseModel):
     is_active: bool
     role: Optional[str]
     created_at: datetime
+<<<<<<< Updated upstream
     tenant_status: Optional[str] = None  # PENDING | ACTIVE | REJECTED (vetëm ORG_ADMIN)
+=======
+    tenant_status: Optional[str] = None  # PENDING | ACTIVE | REJECTED
+>>>>>>> Stashed changes
 
     class Config:
         from_attributes = True

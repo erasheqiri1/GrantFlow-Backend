@@ -1,4 +1,8 @@
 import uuid
+<<<<<<< Updated upstream
+=======
+import jwt
+>>>>>>> Stashed changes
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -7,6 +11,7 @@ import jwt
 from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 from app.core.config import settings
 from app.models.public.models import (
@@ -45,7 +50,10 @@ def get_users(db: Session) -> dict:
     users = db.query(User).order_by(User.created_at.desc()).all()
     items = []
     for user in users:
+<<<<<<< Updated upstream
         # SQL direkt për tenant_status — shmang çdo problem me ORM/enum
+=======
+>>>>>>> Stashed changes
         row = db.execute(
             text("""
                 SELECT t.status::text
@@ -57,7 +65,10 @@ def get_users(db: Session) -> dict:
             """),
             {"uid": str(user.id)}
         ).fetchone()
+<<<<<<< Updated upstream
 
+=======
+>>>>>>> Stashed changes
         items.append({
             "id": user.id,
             "email": user.email,
@@ -221,3 +232,54 @@ def get_user(db: Session, user_id: str) -> dict:
         "interest_field": applicant.interest_field if applicant else None,
         "relevant_link": applicant.relevant_link if applicant else None,
     }
+
+
+def toggle_user_active(db: Session, user_id: str) -> dict:
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="ID i pavlefshëm")
+
+    user = db.query(User).filter(User.id == uid).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Useri nuk u gjet")
+
+    # Blloko toggle nëse tenant i userit është PENDING
+    row = db.execute(
+        text("""
+            SELECT t.status::text
+            FROM public.user_roles ur
+            JOIN public.tenants t ON t.id = ur.tenant_id
+            WHERE ur.user_id = :uid
+              AND ur.tenant_id IS NOT NULL
+            LIMIT 1
+        """),
+        {"uid": str(uid)}
+    ).fetchone()
+
+    if row and row[0] == "PENDING":
+        raise HTTPException(
+            status_code=400,
+            detail="Nuk mund të ndryshosh statusin e userit derisa organizata është në pritje aprovimi"
+        )
+
+    user.is_active = not user.is_active
+    db.commit()
+    return {"is_active": user.is_active}
+
+
+def invite_super_admin(db: Session, email: str) -> dict:
+    token_payload = {
+        "email": email,
+        "role": "SUPER_ADMIN",
+        "tenant_slug": None,
+        "exp": datetime.now(timezone.utc) + timedelta(hours=48),
+    }
+    invite_token = jwt.encode(token_payload, settings.SECRET_KEY, algorithm="HS256")
+
+    invite_link = f"{settings.FRONTEND_URL}/accept-invite?token={invite_token}"
+
+    from app.tasks.email import send_invitation_email
+    send_invitation_email.delay(email, invite_link, "SUPER_ADMIN", "GrantFlow Platform")
+
+    return {"message": f"Ftesa u dërgua te {email}"}
