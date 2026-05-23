@@ -9,7 +9,7 @@ from sqlalchemy import text
 from fastapi import HTTPException, status
 
 from app.core.config import settings
-from app.models.public.models import User, Tenant, Role, UserRole, PasswordResetToken, TenantStatus, UserProfile, ApplicantProfile
+from app.models.public.models import User, Tenant, Role, UserRole, PasswordResetToken, EmailVerificationToken, TenantStatus, UserProfile, ApplicantProfile
 from app.schemas.auth import (
     RegisterRequest,
     RegisterOrgRequest,
@@ -84,7 +84,7 @@ def register_user(data: RegisterRequest, db: Session) -> TokenResponse:
 # REGISTER — Organization
 # ─────────────────────────────────────────
 
-def register_org(data: RegisterOrgRequest, db: Session) -> TokenResponse:
+def register_org(data: RegisterOrgRequest, db: Session) -> dict:
     # kontrollo slug
     existing_tenant = db.query(Tenant).filter(Tenant.slug == data.org_slug).first()
     if existing_tenant:
@@ -94,8 +94,6 @@ def register_org(data: RegisterOrgRequest, db: Session) -> TokenResponse:
     existing_user = db.query(User).filter(User.email == data.email).first()
     if existing_user:
         raise HTTPException(status_code=409, detail="Email ekziston tashmë")
-
-    schema_name = f"tenant_{data.org_slug.replace('-', '_')}"
 
     try:
         tenant = Tenant(
@@ -114,7 +112,8 @@ def register_org(data: RegisterOrgRequest, db: Session) -> TokenResponse:
             password_hash=hash_password(data.password),
             first_name=data.first_name,
             last_name=data.last_name,
-            is_active=True,
+            is_active=False,
+            email_verified=False,
         )
         db.add(user)
         db.flush()
@@ -123,12 +122,53 @@ def register_org(data: RegisterOrgRequest, db: Session) -> TokenResponse:
         user_role = UserRole(user_id=user.id, role_id=role.id, tenant_id=tenant.id)
         db.add(user_role)
 
+        token_value = secrets.token_urlsafe(32)
+        verification_token = EmailVerificationToken(
+            user_id=user.id,
+            token=token_value,
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=24),
+        )
+        db.add(verification_token)
+
         db.commit()
     except Exception:
         db.rollback()
         raise HTTPException(status_code=500, detail="Gabim gjatë regjistrimit të organizatës")
 
-    return {"message": "Organizata u regjistrua me sukses. Prisni aprovimin nga Super Admin."}
+    verify_link = f"{settings.FRONTEND_URL}/verify-email?token={token_value}"
+    full_name = f"{data.first_name} {data.last_name}"
+    try:
+        from app.tasks.email import send_verification_email
+        send_verification_email.delay(data.email, verify_link, full_name)
+    except Exception:
+        pass
+
+    return {"message": "Organizata u regjistrua. Kontrollo emailin tënd për të konfirmuar adresën."}
+
+
+def verify_email(token: str, db: Session) -> dict:
+    verification = db.query(EmailVerificationToken).filter(
+        EmailVerificationToken.token == token
+    ).first()
+
+    if not verification:
+        raise HTTPException(status_code=400, detail="Token i pavlefshëm")
+
+    if verification.expires_at < datetime.now(timezone.utc):
+        db.delete(verification)
+        db.commit()
+        raise HTTPException(status_code=400, detail="Token ka skaduar. Regjistrohu përsëri.")
+
+    user = db.query(User).filter(User.id == verification.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Përdoruesi nuk u gjet")
+
+    user.email_verified = True
+    user.is_active = True
+    db.delete(verification)
+    db.commit()
+
+    return {"message": "Email u konfirmua me sukses. Prisni aprovimin nga administratori."}
 
 
 # ─────────────────────────────────────────
@@ -141,6 +181,8 @@ def login_user(data: LoginRequest, db: Session) -> TokenResponse:
         raise HTTPException(status_code=401, detail="Email ose fjalëkalim i gabuar")
 
     if not user.is_active:
+        if not user.email_verified:
+            raise HTTPException(status_code=403, detail="Konfirmo emailin tënd para se të kyçesh")
         raise HTTPException(status_code=403, detail="Llogaria është joaktive")
 
     # gjej rolin

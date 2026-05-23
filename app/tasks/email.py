@@ -95,3 +95,61 @@ def send_application_result_email(self, to: str, full_name: str, grant_title: st
         return {"status": "sent", "to": to}
     except Exception as exc:
         raise self.retry(exc=exc, countdown=60)
+
+
+@celery_app.task(name="send_org_approval_email", bind=True, max_retries=3)
+def send_org_approval_email(self, to: str, org_name: str, full_name: str, login_url: str) -> dict:
+    try:
+        html = f"""
+        <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px;
+                    background:#0f1117;border-radius:12px;color:#e2e8f0;">
+          <div style="text-align:center;margin-bottom:24px;">
+            <span style="font-size:24px;font-weight:900;">
+              <span style="color:#fff;">GRANT</span><span style="color:#6366f1;">FLOW</span>
+            </span>
+          </div>
+          <h2 style="color:#22c55e;">Organizata juaj u aprovua!</h2>
+          <p>Përshëndetje <strong>{full_name}</strong>,</p>
+          <p>Jemi të lumtur t'ju njoftojmë se organizata
+             <strong style="color:#6366f1;">{org_name}</strong>
+             u aprovua nga administratori i platformës GrantFlow.</p>
+          <p>Tani mund të kyçeni dhe të filloni të menaxhoni grantet tuaja.</p>
+          <div style="text-align:center;margin:28px 0;">
+            <a href="{login_url}"
+               style="background:#22c55e;color:#fff;padding:12px 28px;border-radius:8px;
+                      text-decoration:none;font-weight:600;">
+              Kyçu në GrantFlow →
+            </a>
+          </div>
+        </div>
+        """
+        _send_smtp(to, f"GrantFlow — Organizata '{org_name}' u Aprovua", html)
+        return {"status": "sent", "to": to}
+    except Exception as exc:
+        raise self.retry(exc=exc, countdown=60)
+
+
+@celery_app.task(name="send_org_rejection_email", bind=True, max_retries=3)
+def send_org_rejection_email(self, to: str, org_name: str, full_name: str) -> dict:
+    try:
+        html = f"""
+        <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px;
+                    background:#0f1117;border-radius:12px;color:#e2e8f0;">
+          <div style="text-align:center;margin-bottom:24px;">
+            <span style="font-size:24px;font-weight:900;">
+              <span style="color:#fff;">GRANT</span><span style="color:#6366f1;">FLOW</span>
+            </span>
+          </div>
+          <h2 style="color:#ef4444;">Organizata juaj nuk u aprovua</h2>
+          <p>Përshëndetje <strong>{full_name}</strong>,</p>
+          <p>Pas shqyrtimit, aplikimi i organizatës
+             <strong style="color:#6366f1;">{org_name}</strong>
+             nuk u aprovua nga administratori i platformës GrantFlow.</p>
+          <p style="color:#94a3b8;">Nëse besoni se kjo është një gabim ose dëshironi
+             më shumë informacion, ju lutemi na kontaktoni.</p>
+        </div>
+        """
+        _send_smtp(to, f"GrantFlow — Aplikimi i '{org_name}' Nuk u Aprovua", html)
+        return {"status": "sent", "to": to}
+    except Exception as exc:
+        raise self.retry(exc=exc, countdown=60)
