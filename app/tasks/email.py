@@ -56,3 +56,42 @@ def send_invitation_email(self, to: str, invite_link: str, role: str, org_name: 
         return {"status": "sent", "to": to}
     except Exception as exc:
         raise self.retry(exc=exc, countdown=60)
+
+
+@celery_app.task(name="send_application_result_email", bind=True, max_retries=3)
+def send_application_result_email(self, to: str, full_name: str, grant_title: str, approved: bool, reason: str = "") -> dict:
+    try:
+        if approved:
+            color   = "#22c55e"
+            heading = "Urime! Aplikimi juaj u aprovua 🎉"
+            body    = f"Jemi të lumtur t'ju njoftojmë se aplikimi juaj për grantin <strong style=\"color:#6366f1;\">{grant_title}</strong> u aprovua nga organizata."
+            extra   = ""
+        else:
+            color   = "#ef4444"
+            heading = "Aplikimi juaj nuk u aprovua"
+            body    = f"Pas shqyrtimit, aplikimi juaj për grantin <strong style=\"color:#6366f1;\">{grant_title}</strong> nuk u aprovua."
+            extra   = f"<p style=\"color:#94a3b8;\"><strong>Arsyeja:</strong> {reason}</p>" if reason else ""
+
+        html = f"""
+        <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px;
+                    background:#0f1117;border-radius:12px;color:#e2e8f0;">
+          <div style="text-align:center;margin-bottom:24px;">
+            <span style="font-size:24px;font-weight:900;">
+              <span style="color:#fff;">GRANT</span><span style="color:#6366f1;">FLOW</span>
+            </span>
+          </div>
+          <h2 style="color:{color};">{heading}</h2>
+          <p>Përshëndetje <strong>{full_name}</strong>,</p>
+          <p>{body}</p>
+          {extra}
+          <p style="color:#64748b;font-size:12px;margin-top:24px;">
+            Mund të identifikoheni në platformë për të parë detajet e plotë.
+          </p>
+        </div>
+        """
+
+        subject = f"GrantFlow — {'Aplikimi u aprovua' if approved else 'Aplikimi nuk u aprovua'}: {grant_title}"
+        _send_smtp(to, subject, html)
+        return {"status": "sent", "to": to}
+    except Exception as exc:
+        raise self.retry(exc=exc, countdown=60)

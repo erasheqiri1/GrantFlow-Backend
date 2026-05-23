@@ -19,10 +19,11 @@ class AnswerCreate(BaseModel):
 
 
 class AnswerResponse(BaseModel):
-    id:          UUID
-    question_id: UUID
-    answer_text: Optional[str]
-    created_at:  datetime
+    id:            UUID
+    question_id:   UUID
+    question_text: Optional[str] = None
+    answer_text:   Optional[str]
+    created_at:    datetime
 
     model_config = {"from_attributes": True}
 
