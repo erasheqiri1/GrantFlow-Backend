@@ -6,7 +6,7 @@ from sqlalchemy import text
 
 from app.models.tenant.models import (
     Application, ApplicationAnswer, ApplicationStatus,
-    Grant, GrantStatus, CommissionerWorkload, Attachment, Notification, NotificationType
+    Grant, GrantStatus, CommissionerWorkload, Attachment, ApplicationQuestion
 )
 from app.models.public.models import Tenant, TenantStatus, UserRole, ApplicantProfile
 from app.schemas.applications import ApplicationCreate, ApplicationUpdate
@@ -59,7 +59,7 @@ def find_schema_for_grant(grant_id: uuid.UUID, db: Session) -> str:
         try:
             row = db.execute(text(f"""
                 SELECT id FROM "{schema_name}".grants
-                WHERE id = :gid AND status = 'PUBLISHED'
+                WHERE id = :gid AND status::text IN ('PUBLISHED', 'CLOSED')
             """), {"gid": str(grant_id)}).fetchone()
             if row:
                 return schema_name
@@ -167,9 +167,28 @@ def _enrich_with_user_info(app: Application, db: Session) -> None:
         app.__dict__['user_name'] = None
 
 
+def _enrich_with_answers(app: Application, db: Session) -> None:
+    """Shton përgjigjet e aplikantit bashkë me tekstin e pyetjes."""
+    try:
+        answers = (
+            db.query(ApplicationAnswer)
+            .filter(ApplicationAnswer.application_id == app.id)
+            .all()
+        )
+        for ans in answers:
+            q = db.query(ApplicationQuestion).filter(
+                ApplicationQuestion.id == ans.question_id
+            ).first()
+            ans.__dict__['question_text'] = q.question_text if q else None
+        app.__dict__['answers'] = answers
+    except Exception:
+        app.__dict__['answers'] = []
+
+
 def _enrich(app: Application, db: Session) -> None:
     _enrich_with_grant_title(app, db)
     _enrich_with_attachments(app, db)
+    _enrich_with_answers(app, db)
     _enrich_with_user_info(app, db)
 
 
@@ -412,17 +431,20 @@ def approve_application(application_id: str, user: dict, db: Session) -> Applica
     app.status = ApplicationStatus.APPROVED
     app.decided_at = datetime.now(timezone.utc)
     grant = db.query(Grant).filter(Grant.id == app.grant_id).first()
-    db.add(Notification(
-        id=uuid.uuid4(),
-        user_id=app.user_id,
-        title="Aplikimi u aprovua",
-        message=f"Aplikimi juaj për grantin '{grant.title if grant else ''}' u aprovua!",
-        type=NotificationType.APPLICATION_STATUS,
-        is_read=False,
-    ))
     db.commit()
     log_action(user["user_id"], "APPROVE_APPLICATION", "application", str(app.id),
                details={"grant_title": grant.title if grant else None})
+    try:
+        from app.tasks.email import send_application_result_email
+        row = db.execute(
+            text("SELECT email, first_name, last_name FROM public.users WHERE id = :uid"),
+            {"uid": str(app.user_id)}
+        ).fetchone()
+        if row:
+            full_name = f"{row.first_name} {row.last_name}".strip() or row.email
+            send_application_result_email.delay(row.email, full_name, grant.title if grant else "", True)
+    except Exception:
+        pass
     _enrich(app, db)
     return app
 
@@ -435,16 +457,19 @@ def reject_application(application_id: str, reason: str, user: dict, db: Session
     app.decided_at = datetime.now(timezone.utc)
     app.decision_reason = reason or None
     grant = db.query(Grant).filter(Grant.id == app.grant_id).first()
-    db.add(Notification(
-        id=uuid.uuid4(),
-        user_id=app.user_id,
-        title="Aplikimi u refuzua",
-        message=f"Aplikimi juaj për grantin '{grant.title if grant else ''}' u refuzua. {reason or ''}".strip(),
-        type=NotificationType.APPLICATION_STATUS,
-        is_read=False,
-    ))
     db.commit()
     log_action(user["user_id"], "REJECT_APPLICATION", "application", str(app.id),
                details={"grant_title": grant.title if grant else None, "reason": reason})
+    try:
+        from app.tasks.email import send_application_result_email
+        row = db.execute(
+            text("SELECT email, first_name, last_name FROM public.users WHERE id = :uid"),
+            {"uid": str(app.user_id)}
+        ).fetchone()
+        if row:
+            full_name = f"{row.first_name} {row.last_name}".strip() or row.email
+            send_application_result_email.delay(row.email, full_name, grant.title if grant else "", False, reason or "")
+    except Exception:
+        pass
     _enrich(app, db)
     return app

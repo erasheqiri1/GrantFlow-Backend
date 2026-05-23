@@ -58,9 +58,20 @@ def send_invitation_email(self, to: str, invite_link: str, role: str, org_name: 
         raise self.retry(exc=exc, countdown=60)
 
 
-@celery_app.task(name="send_verification_email", bind=True, max_retries=3)
-def send_verification_email(self, to: str, verify_link: str, full_name: str) -> dict:
+@celery_app.task(name="send_application_result_email", bind=True, max_retries=3)
+def send_application_result_email(self, to: str, full_name: str, grant_title: str, approved: bool, reason: str = "") -> dict:
     try:
+        if approved:
+            color   = "#22c55e"
+            heading = "Urime! Aplikimi juaj u aprovua 🎉"
+            body    = f"Jemi të lumtur t'ju njoftojmë se aplikimi juaj për grantin <strong style=\"color:#6366f1;\">{grant_title}</strong> u aprovua nga organizata."
+            extra   = ""
+        else:
+            color   = "#ef4444"
+            heading = "Aplikimi juaj nuk u aprovua"
+            body    = f"Pas shqyrtimit, aplikimi juaj për grantin <strong style=\"color:#6366f1;\">{grant_title}</strong> nuk u aprovua."
+            extra   = f"<p style=\"color:#94a3b8;\"><strong>Arsyeja:</strong> {reason}</p>" if reason else ""
+
         html = f"""
         <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px;
                     background:#0f1117;border-radius:12px;color:#e2e8f0;">
@@ -69,24 +80,18 @@ def send_verification_email(self, to: str, verify_link: str, full_name: str) -> 
               <span style="color:#fff;">GRANT</span><span style="color:#6366f1;">FLOW</span>
             </span>
           </div>
-          <h2 style="color:#fff;">Konfirmo adresën tënde të emailit</h2>
+          <h2 style="color:{color};">{heading}</h2>
           <p>Përshëndetje <strong>{full_name}</strong>,</p>
-          <p>Faleminderit që u regjistruat në GrantFlow. Për të vazhduar,
-             ju lutemi konfirmoni adresën tuaj të emailit duke klikuar butonin më poshtë.</p>
-          <div style="text-align:center;margin:28px 0;">
-            <a href="{verify_link}"
-               style="background:#6366f1;color:#fff;padding:12px 28px;border-radius:8px;
-                      text-decoration:none;font-weight:600;">
-              Konfirmo Emailin →
-            </a>
-          </div>
-          <p style="color:#64748b;font-size:12px;">
-            Ky link është i vlefshëm për <strong>24 orë</strong>.<br>
-            Nëse nuk e keni kërkuar këtë, mund ta injoroni këtë email.
+          <p>{body}</p>
+          {extra}
+          <p style="color:#64748b;font-size:12px;margin-top:24px;">
+            Mund të identifikoheni në platformë për të parë detajet e plotë.
           </p>
         </div>
         """
-        _send_smtp(to, "GrantFlow — Konfirmo Emailin Tënd", html)
+
+        subject = f"GrantFlow — {'Aplikimi u aprovua' if approved else 'Aplikimi nuk u aprovua'}: {grant_title}"
+        _send_smtp(to, subject, html)
         return {"status": "sent", "to": to}
     except Exception as exc:
         raise self.retry(exc=exc, countdown=60)
@@ -135,7 +140,7 @@ def send_org_rejection_email(self, to: str, org_name: str, full_name: str) -> di
               <span style="color:#fff;">GRANT</span><span style="color:#6366f1;">FLOW</span>
             </span>
           </div>
-          <h2 style="color:#ef4444;">Aplikimi juaj nuk u aprovua</h2>
+          <h2 style="color:#ef4444;">Organizata juaj nuk u aprovua</h2>
           <p>Përshëndetje <strong>{full_name}</strong>,</p>
           <p>Pas shqyrtimit, aplikimi i organizatës
              <strong style="color:#6366f1;">{org_name}</strong>

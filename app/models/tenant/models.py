@@ -41,13 +41,6 @@ class QuestionType(str, enum.Enum):
     YES_NO    = "YES_NO"
 
 
-class NotificationType(str, enum.Enum):
-    APPLICATION_STATUS = "APPLICATION_STATUS"
-    DEADLINE           = "DEADLINE"
-    INVITE             = "INVITE"
-    SYSTEM             = "SYSTEM"
-
-
 class EmailStatus(str, enum.Enum):
     PENDING = "PENDING"
     SENT    = "SENT"
@@ -267,19 +260,6 @@ class Invitation(Base):
     accepted_at = Column(DateTime(timezone=True), nullable=True)
     accepted_by = Column(UUID(as_uuid=True), ForeignKey("public.users.id"), nullable=True)
     created_at  = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
-
-
-class Notification(Base):
-    __tablename__  = "notifications"
-    __table_args__ = {"extend_existing": True}
-
-    id         = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id    = Column(UUID(as_uuid=True), ForeignKey("public.users.id", ondelete="CASCADE"), nullable=False)
-    title      = Column(String(200), nullable=False)
-    message    = Column(Text,        nullable=False)
-    type       = Column(SAEnum(NotificationType), nullable=False)
-    is_read    = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class EmailLog(Base):

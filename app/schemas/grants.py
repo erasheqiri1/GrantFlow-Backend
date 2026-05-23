@@ -54,6 +54,14 @@ class QuestionInGrant(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class CriteriaInGrant(BaseModel):
+    id:          str
+    name:        str
+    weight:      int
+    is_required: bool
+    model_config = {"from_attributes": True}
+
+
 class GrantResponse(BaseModel):
     id:             UUID
     title:          str
@@ -69,6 +77,7 @@ class GrantResponse(BaseModel):
     created_at:     datetime
     tenant_slug:    Optional[str] = None
     org_name:       Optional[str] = None
-    questions:      List[QuestionInGrant] = []
+    questions:      List[QuestionInGrant]  = []
+    criteria:       List[CriteriaInGrant]  = []
 
     model_config = {"from_attributes": True}

@@ -168,19 +168,7 @@ CREATE TABLE IF NOT EXISTS "{schema}".invitations (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 14. notifications
-CREATE TABLE IF NOT EXISTS "{schema}".notifications (
-    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id    UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-    title      VARCHAR(200) NOT NULL,
-    message    TEXT NOT NULL,
-    type       VARCHAR(50) NOT NULL
-               CHECK (type IN ('APPLICATION_STATUS', 'DEADLINE', 'INVITE', 'SYSTEM')),
-    is_read    BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- 15. email_logs
+-- 14. email_logs
 CREATE TABLE IF NOT EXISTS "{schema}".email_logs (
     id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     to_email   VARCHAR(200) NOT NULL,

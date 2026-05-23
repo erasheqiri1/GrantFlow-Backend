@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from app.models.tenant.models import Grant, GrantStatus, ApplicationQuestion, Application, ApplicationStatus, AIScore
+from app.models.tenant.models import Grant, GrantStatus, ApplicationQuestion, Application, ApplicationStatus, AIScore, Criteria
 from app.models.public.models import Tenant, TenantStatus
 from app.schemas.grants import GrantCreate, GrantUpdate
 from app.services.audit import log_action
@@ -146,14 +146,20 @@ def get_all_published_grants(
 
 def get_grant_detail(grant_id: str, db: Session) -> dict:
     """
-    Kthen grantin + pyetjet e tij.
-    Përdoret nga GET /grants/{id} — aplikanti sheh çfarë duhet t'i përgjigjet.
+    Kthen grantin + pyetjet + kriteret.
+    Përdoret nga GET /grants/{id} — aplikanti sheh çfarë duhet t'i përgjigjet dhe si vlerësohet.
     """
     grant = get_grant(grant_id, db)
     questions = (
         db.query(ApplicationQuestion)
         .filter(ApplicationQuestion.grant_id == grant.id)
         .order_by(ApplicationQuestion.order_no)
+        .all()
+    )
+    criteria = (
+        db.query(Criteria)
+        .filter(Criteria.grant_id == grant.id)
+        .order_by(Criteria.name)
         .all()
     )
     return {
@@ -178,6 +184,15 @@ def get_grant_detail(grant_id: str, db: Session) -> dict:
                 "order_no":      q.order_no,
             }
             for q in questions
+        ],
+        "criteria": [
+            {
+                "id":          str(c.id),
+                "name":        c.name,
+                "weight":      round(float(c.weight) * 100),
+                "is_required": c.is_required,
+            }
+            for c in criteria
         ],
     }
 
@@ -215,6 +230,17 @@ def publish_grant(grant_id: str, user: dict, db: Session) -> Grant:
     grant = get_grant(grant_id, db)
     if grant.status != GrantStatus.DRAFT:
         raise HTTPException(status_code=400, detail="Vetëm grantet DRAFT mund të publikohen")
+
+    # Nëse ka kritere, pesha totale duhet të jetë 100%
+    criteria = db.query(Criteria).filter(Criteria.grant_id == grant.id).all()
+    if criteria:
+        total = round(sum(float(c.weight) for c in criteria) * 100)
+        if total != 100:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Pesha totale e kritereve duhet të jetë 100% (tani: {total}%)"
+            )
+
     grant.status = GrantStatus.PUBLISHED
     db.commit()
     log_action(user["user_id"], "PUBLISH_GRANT", "grant", str(grant.id),
