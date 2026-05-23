@@ -23,9 +23,9 @@ from app.services import auth as auth_service
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
-@router.post("/register", response_model=TokenResponse, status_code=201)
+@router.post("/register", response_model=MessageResponse, status_code=201)
 def register(data: RegisterRequest, db: Session = Depends(get_db)):
-    """Regjistrim i aplikantit të ri."""
+    """Regjistrim i aplikantit të ri — dërgon email verifikimi."""
     return auth_service.register_user(data, db)
 
 
