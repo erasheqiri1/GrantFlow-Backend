@@ -57,14 +57,15 @@ class User(Base):
     __tablename__  = "users"
     __table_args__ = {"schema": "public"}
 
-    id            = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    email         = Column(String(200), unique=True, nullable=False)
-    password_hash = Column(String(500), nullable=False)
-    first_name    = Column(String(100), nullable=False)
-    last_name     = Column(String(100), nullable=False)
-    is_active     = Column(Boolean, default=True, nullable=False)
-    created_at    = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at    = Column(
+    id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email          = Column(String(200), unique=True, nullable=False)
+    password_hash  = Column(String(500), nullable=False)
+    first_name     = Column(String(100), nullable=False)
+    last_name      = Column(String(100), nullable=False)
+    is_active      = Column(Boolean, default=True,  nullable=False)
+    email_verified = Column(Boolean, default=True,  nullable=False)
+    created_at     = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at     = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
@@ -151,6 +152,17 @@ class PasswordResetToken(Base):
     token      = Column(String(200), unique=True, nullable=False)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     is_used    = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class EmailVerificationToken(Base):
+    __tablename__  = "email_verification_tokens"
+    __table_args__ = {"schema": "public"}
+
+    id         = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id    = Column(UUID(as_uuid=True), ForeignKey("public.users.id", ondelete="CASCADE"), nullable=False)
+    token      = Column(String(200), unique=True, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
 #qikjo eshte implementimi i RBAC

@@ -49,6 +49,17 @@ def approve_tenant(db: Session, tenant_id: str, user_id: str) -> dict:
     create_tenant_schema(db, tenant.slug)
     log_action(user_id, "APPROVE_TENANT", "tenant", tenant_id,
                details={"org_name": tenant.name})
+
+    if org_admin_role and org_admin_user:
+        from app.tasks.email import send_org_approval_email
+        from app.core.config import settings
+        login_url = f"{settings.FRONTEND_URL}/login"
+        full_name = f"{org_admin_user.first_name} {org_admin_user.last_name}"
+        try:
+            send_org_approval_email.delay(org_admin_user.email, tenant.name, full_name, login_url)
+        except Exception:
+            pass
+
     return {"message": f"Organizata '{tenant.name}' u aprovua."}
 
 
@@ -75,6 +86,15 @@ def reject_tenant(db: Session, tenant_id: str, user_id: str) -> dict:
     db.commit()
     log_action(user_id, "REJECT_TENANT", "tenant", tenant_id,
                details={"org_name": tenant.name})
+
+    if org_admin_role and org_admin_user:
+        from app.tasks.email import send_org_rejection_email
+        full_name = f"{org_admin_user.first_name} {org_admin_user.last_name}"
+        try:
+            send_org_rejection_email.delay(org_admin_user.email, tenant.name, full_name)
+        except Exception:
+            pass
+
     return {"message": f"Organizata '{tenant.name}' u refuzua."}
 
 

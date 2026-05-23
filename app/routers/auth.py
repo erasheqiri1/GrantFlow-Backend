@@ -89,6 +89,12 @@ async def upload_org_doc(
     return {"message": "Dokumenti u ngarkua me sukses."}
 
 
+@router.get("/verify-email", response_model=MessageResponse, status_code=200)
+def verify_email(token: str, db: Session = Depends(get_db)):
+    """Konfirmo emailin me token të dërguar gjatë regjistrimit."""
+    return auth_service.verify_email(token, db)
+
+
 @router.post("/invite/accept", response_model=TokenResponse, status_code=201)
 def accept_invite(data: InviteAcceptRequest, db: Session = Depends(get_db)):
     """Prano ftesën dhe krijo llogarinë."""
