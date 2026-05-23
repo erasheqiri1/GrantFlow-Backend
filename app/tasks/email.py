@@ -163,6 +163,39 @@ def send_org_approval_email(self, to: str, org_name: str, full_name: str, login_
         raise self.retry(exc=exc, countdown=60)
 
 
+@celery_app.task(name="send_reset_password_email", bind=True, max_retries=3)
+def send_reset_password_email(self, to: str, reset_link: str) -> dict:
+    try:
+        html = f"""
+        <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px;
+                    background:#0f1117;border-radius:12px;color:#e2e8f0;">
+          <div style="text-align:center;margin-bottom:24px;">
+            <span style="font-size:24px;font-weight:900;">
+              <span style="color:#fff;">GRANT</span><span style="color:#6366f1;">FLOW</span>
+            </span>
+          </div>
+          <h2 style="color:#fff;">Rivendosja e fjalëkalimit</h2>
+          <p>Kemi marrë një kërkesë për rivendosjen e fjalëkalimit të llogarisë suaj.</p>
+          <p>Klikoni butonin më poshtë për të vendosur një fjalëkalim të ri:</p>
+          <div style="text-align:center;margin:28px 0;">
+            <a href="{reset_link}"
+               style="background:#6366f1;color:#fff;padding:12px 28px;border-radius:8px;
+                      text-decoration:none;font-weight:600;">
+              Rivendos fjalëkalimin →
+            </a>
+          </div>
+          <p style="color:#64748b;font-size:12px;">
+            Ky link skadon pas <strong>1 ore</strong>.<br>
+            Nëse nuk keni kërkuar rivendosjen e fjalëkalimit, mund ta injoroni këtë email.
+          </p>
+        </div>
+        """
+        _send_smtp(to, "GrantFlow — Rivendos fjalëkalimin", html)
+        return {"status": "sent", "to": to}
+    except Exception as exc:
+        raise self.retry(exc=exc, countdown=60)
+
+
 @celery_app.task(name="send_org_rejection_email", bind=True, max_retries=3)
 def send_org_rejection_email(self, to: str, org_name: str, full_name: str) -> dict:
     try:

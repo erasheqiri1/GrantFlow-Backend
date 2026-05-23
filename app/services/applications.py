@@ -303,10 +303,14 @@ def _auto_assign_commissioner(app: Application, db: Session) -> None:
 
         commissioner_ids = [row.user_id for row in rows]
 
-        # Gjej atë me assigned_count më të vogël
+        # Gjej atë me assigned_count më të vogël;
+        # nëse janë baras → ai që mori aplikimin e fundit më herët (round-robin i drejtë)
         workloads = db.query(CommissionerWorkload).filter(
             CommissionerWorkload.commissioner_id.in_(commissioner_ids)
-        ).order_by(CommissionerWorkload.assigned_count.asc()).all()
+        ).order_by(
+            CommissionerWorkload.assigned_count.asc(),
+            CommissionerWorkload.updated_at.asc(),
+        ).all()
 
         tracked_ids = {w.commissioner_id for w in workloads}
         untracked   = [cid for cid in commissioner_ids if cid not in tracked_ids]
@@ -409,6 +413,8 @@ def start_review(application_id: str, user: dict, db: Session) -> Application:
     app.status = ApplicationStatus.UNDER_REVIEW
     db.commit()
     log_action(user["user_id"], "START_REVIEW", "application", str(app.id))
+    _enrich(app, db)
+    return app
 
 
 def reset_to_submitted(application_id: str, user: dict, db: Session) -> Application:
@@ -420,8 +426,6 @@ def reset_to_submitted(application_id: str, user: dict, db: Session) -> Applicat
     log_action(user["user_id"], "RESET_TO_SUBMITTED", "application", str(app.id))
     _enrich(app, db)
     return app
-    _enrich(app, db)
-    return app
 
 
 def approve_application(application_id: str, user: dict, db: Session) -> Application:
@@ -429,6 +433,7 @@ def approve_application(application_id: str, user: dict, db: Session) -> Applica
     if app.status not in (ApplicationStatus.SUBMITTED, ApplicationStatus.UNDER_REVIEW):
         raise HTTPException(status_code=400, detail="Aplikimi nuk mund të aprovohet në këtë status")
     app.status = ApplicationStatus.APPROVED
+    app.decided_by = uuid.UUID(user["user_id"])
     app.decided_at = datetime.now(timezone.utc)
     grant = db.query(Grant).filter(Grant.id == app.grant_id).first()
     db.commit()
@@ -454,6 +459,7 @@ def reject_application(application_id: str, reason: str, user: dict, db: Session
     if app.status not in (ApplicationStatus.SUBMITTED, ApplicationStatus.UNDER_REVIEW):
         raise HTTPException(status_code=400, detail="Aplikimi nuk mund të refuzohet në këtë status")
     app.status = ApplicationStatus.REJECTED
+    app.decided_by = uuid.UUID(user["user_id"])
     app.decided_at = datetime.now(timezone.utc)
     app.decision_reason = reason or None
     grant = db.query(Grant).filter(Grant.id == app.grant_id).first()

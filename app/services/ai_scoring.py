@@ -28,6 +28,37 @@ def _get_client():
     return None, "heuristic-fallback"
 
 
+def _parse_attachment_text(file_path: str) -> str:
+    """
+    Lexon tekstin nga një dokument PDF i ngarkuar nga aplikanti.
+    Kthen string të zbrazët nëse skedari nuk ekziston ose nuk mund të lexohet.
+    Kufizohet në 2000 karaktere për të mos i mbingarkuar AI prompt-in.
+    """
+    try:
+        # file_path është si "/uploads/attachments/uuid.pdf"
+        local_path = file_path.lstrip("/")
+        import os
+        if not os.path.exists(local_path):
+            return ""
+
+        ext = os.path.splitext(local_path)[1].lower()
+
+        if ext == ".pdf":
+            import pdfplumber
+            text_parts = []
+            with pdfplumber.open(local_path) as pdf:
+                for page in pdf.pages[:5]:  # max 5 faqe
+                    t = page.extract_text()
+                    if t:
+                        text_parts.append(t.strip())
+            return "\n".join(text_parts)[:2000]
+
+        # Formatet e tjera (JPG, PNG, DOC) nuk mund të lexohen pa library shtesë
+        return ""
+    except Exception:
+        return ""
+
+
 def score_application(application_id: str, db: Session) -> AIScore:
     """
     Vlerëson një aplikim me AI dhe ruan rezultatin në tabelën ai_scores.
@@ -51,9 +82,18 @@ def score_application(application_id: str, db: Session) -> AIScore:
         raise HTTPException(status_code=404, detail="Aplikimi nuk u gjet")
 
     # Merr grantin dhe kriteret
-    grant    = db.query(Grant).filter(Grant.id == app.grant_id).first()
-    criteria = db.query(Criteria).filter(Criteria.grant_id == app.grant_id).all()
-    answers  = db.query(ApplicationAnswer).filter(ApplicationAnswer.application_id == aid).all()
+    from app.models.tenant.models import Attachment
+    grant       = db.query(Grant).filter(Grant.id == app.grant_id).first()
+    criteria    = db.query(Criteria).filter(Criteria.grant_id == app.grant_id).all()
+    answers     = db.query(ApplicationAnswer).filter(ApplicationAnswer.application_id == aid).all()
+    attachments = db.query(Attachment).filter(Attachment.application_id == aid).all()
+
+    # Parsо dokumentet PDF
+    doc_texts = []
+    for att in attachments:
+        text = _parse_attachment_text(att.file_path)
+        if text:
+            doc_texts.append(f"[{att.file_name}]\n{text}")
 
     # Lazy-init client (lexon .env nëpërmjet settings)
     client, model_name = _get_client()
@@ -63,7 +103,7 @@ def score_application(application_id: str, db: Session) -> AIScore:
 
     if client is not None:
         try:
-            prompt   = _build_prompt(app, grant, criteria, answers)
+            prompt   = _build_prompt(app, grant, criteria, answers, doc_texts or None)
             response = client.chat.completions.create(
                 model=model_name,
                 messages=[
@@ -99,9 +139,10 @@ def score_application(application_id: str, db: Session) -> AIScore:
         ai_score_val, justification = _heuristic_score(app, answers, criteria)
         model_name = "heuristic-fallback"
 
-    # Llogarit final_score
-    ai_weight   = float(grant.ai_weight) if grant and grant.ai_weight else 0.6
-    final_score = round(ai_score_val * ai_weight, 2)
+    # Llogarit final_score — respekto commissioner_score nëse ekziston
+    ai_weight        = float(grant.ai_weight) if grant and grant.ai_weight else 0.6
+    commissioner_val = float(existing.commissioner_score) if existing and existing.commissioner_score is not None else 0.0
+    final_score      = round(ai_score_val * ai_weight + commissioner_val * (1 - ai_weight), 2)
 
     # Ruaj ose përditëso
     now = datetime.now(timezone.utc)
@@ -172,12 +213,68 @@ def set_commissioner_score(application_id: str, commissioner_score: float, db: S
         db.add(score_row)
 
     # Kalo aplikimin në UNDER_REVIEW — komisioner e ka shqyrtuar
-    from app.models.tenant.models import ApplicationStatus
+    from app.models.tenant.models import ApplicationStatus, GrantStatus
     if app.status == ApplicationStatus.SUBMITTED:
         app.status = ApplicationStatus.UNDER_REVIEW
 
     db.commit()
+
+    # Auto-finalize: kontrollo nëse të gjitha aplikimet janë vlerësuar
+    _check_auto_finalize(grant, app, db)
+
     return score_row
+
+
+def _check_auto_finalize(grant, scored_app, db: Session) -> None:
+    """
+    Pas çdo pikë komisioner, kontrollo:
+    1. Deadline ka kaluar ose granti është CLOSED
+    2. Të gjitha aplikimet aktive kanë commissioner_score
+    Nëse po → finalize automatik.
+    """
+    try:
+        from datetime import datetime, timezone
+        from app.models.tenant.models import ApplicationStatus, GrantStatus, Application
+
+        if not grant:
+            return
+
+        now = datetime.now(timezone.utc)
+        deadline_passed = grant.deadline is not None and grant.deadline < now
+        is_closed       = grant.status == GrantStatus.CLOSED
+
+        if not (deadline_passed or is_closed):
+            return  # Deadline nuk ka kaluar ende
+
+        # Merr të gjitha aplikimet aktive
+        active_apps = db.query(Application).filter(
+            Application.grant_id == grant.id,
+            Application.status.in_([ApplicationStatus.SUBMITTED, ApplicationStatus.UNDER_REVIEW])
+        ).all()
+
+        if not active_apps:
+            return
+
+        # Kontrollo nëse të gjitha kanë commissioner_score
+        all_scored = all(
+            db.query(AIScore).filter(
+                AIScore.application_id == a.id,
+                AIScore.commissioner_score.isnot(None)
+            ).first() is not None
+            for a in active_apps
+        )
+
+        if not all_scored:
+            return
+
+        # Të gjitha vlerësuara + deadline kaloi → auto-finalize
+        from app.services.grants import finalize_grant
+        system_user = {"user_id": str(scored_app.user_id), "tenant_id": None}
+        finalize_grant(str(grant.id), system_user, db)
+        print(f"[auto-finalize] Grant {grant.id} u finalizua automatikisht.")
+
+    except Exception as e:
+        print(f"[auto-finalize] dështoi: {e}")
 
 
 def get_score(application_id: str, db: Session) -> AIScore | None:
@@ -223,7 +320,7 @@ def _heuristic_score(app, answers, criteria) -> tuple[float, str]:
     return score, justification
 
 
-def _build_prompt(app, grant, criteria, answers) -> str:
+def _build_prompt(app, grant, criteria, answers, doc_texts=None) -> str:
     lines = []
     lines.append(f"GRANT: {grant.title if grant else 'Pa titull'}")
     if grant and grant.description:
@@ -246,6 +343,11 @@ def _build_prompt(app, grant, criteria, answers) -> str:
         lines.append("\nPergjigjet:")
         for i, a in enumerate(answers, 1):
             lines.append(f"  {i}. {a.answer_text or '(pa pergjigje)'}")
+
+    if doc_texts:
+        lines.append("\nDOKUMENTET E NGARKUARA:")
+        for doc in doc_texts:
+            lines.append(doc[:1000])
 
     lines.append("\nJep nje vleresim te drejte 0-100 dhe arsyetim te shkurter ne shqip.")
     return "\n".join(lines)

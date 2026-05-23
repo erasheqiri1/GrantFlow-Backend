@@ -227,9 +227,6 @@ async def upload_attachment(
         pub_db.close()
 
 
-class AssignRequest(BaseModel):
-    commissioner_id: str
-
 @router.patch("/{application_id}/assign", response_model=ApplicationResponse)
 def assign_application(
     application_id: str,

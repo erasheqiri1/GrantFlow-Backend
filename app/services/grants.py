@@ -341,6 +341,25 @@ def finalize_grant(grant_id: str, user: dict, db: Session) -> dict:
                tenant_id=user.get("tenant_id"),
                details={"approved": approved_count, "rejected": rejected_count})
 
+    # Dërgo email për çdo aplikant
+    try:
+        from app.tasks.email import send_application_result_email
+        from sqlalchemy import text as _text
+        for app, score_row, final in scored:
+            row = db.execute(
+                _text("SELECT email, first_name, last_name FROM public.users WHERE id = :uid"),
+                {"uid": str(app.user_id)}
+            ).fetchone()
+            if row:
+                full_name = f"{row.first_name} {row.last_name}".strip() or row.email
+                approved  = app.status.value == "APPROVED"
+                reason    = app.decision_reason or ""
+                send_application_result_email.delay(
+                    row.email, full_name, grant.title, approved, reason
+                )
+    except Exception:
+        pass
+
     return {
         "status":   "finalized",
         "grant_id": grant_id,
