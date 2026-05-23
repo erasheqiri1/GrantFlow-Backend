@@ -17,6 +17,7 @@ PUBLIC_PATHS = [
     "/auth/forgot-password",
     "/auth/reset-password",
     "/auth/invite/accept",
+    "/auth/verify-email",
 ]
 
 PUBLIC_PREFIXES = [

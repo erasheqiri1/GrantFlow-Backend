@@ -47,7 +47,7 @@ def create_token(user_id: str, role: str, tenant_slug: str | None) -> str:
 # REGISTER — Applicant
 # ─────────────────────────────────────────
 
-def register_user(data: RegisterRequest, db: Session) -> TokenResponse:
+def register_user(data: RegisterRequest, db: Session) -> dict:
     # kontrollo nëse ekziston email
     existing = db.query(User).filter(User.email == data.email).first()
     if existing:
@@ -59,7 +59,8 @@ def register_user(data: RegisterRequest, db: Session) -> TokenResponse:
             password_hash=hash_password(data.password),
             first_name=data.first_name,
             last_name=data.last_name,
-            is_active=True,
+            is_active=False,
+            email_verified=False,
         )
         db.add(user)
         db.flush()
@@ -71,13 +72,28 @@ def register_user(data: RegisterRequest, db: Session) -> TokenResponse:
         db.add(UserProfile(user_id=user.id))
         db.add(ApplicantProfile(user_id=user.id))
 
+        token_value = secrets.token_urlsafe(32)
+        verification_token = EmailVerificationToken(
+            user_id=user.id,
+            token=token_value,
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=24),
+        )
+        db.add(verification_token)
+
         db.commit()
     except Exception:
         db.rollback()
         raise HTTPException(status_code=500, detail="Gabim gjatë regjistrimit")
 
-    token = create_token(user.id, "APPLICANT", None)
-    return TokenResponse(access_token=token, role="APPLICANT", user_id=str(user.id))
+    verify_link = f"{settings.FRONTEND_URL}/verify-email?token={token_value}"
+    full_name = f"{data.first_name} {data.last_name}"
+    try:
+        from app.tasks.email import send_verification_email
+        send_verification_email.delay(data.email, verify_link, full_name)
+    except Exception:
+        pass
+
+    return {"message": "Llogaria u krijua. Kontrollo emailin tënd dhe kliko linkun për të aktivizuar llogarinë."}
 
 
 # ─────────────────────────────────────────
@@ -137,11 +153,14 @@ def register_org(data: RegisterOrgRequest, db: Session) -> dict:
 
     verify_link = f"{settings.FRONTEND_URL}/verify-email?token={token_value}"
     full_name = f"{data.first_name} {data.last_name}"
+    print(f"[ORG REGISTER] dergon email te: {data.email}")
+    print(f"[ORG REGISTER] verify_link: {verify_link}")
     try:
         from app.tasks.email import send_verification_email
-        send_verification_email.delay(data.email, verify_link, full_name)
-    except Exception:
-        pass
+        result = send_verification_email.delay(data.email, verify_link, full_name)
+        print(f"[ORG REGISTER] task u enqueue-ua: {result.id}")
+    except Exception as e:
+        print(f"[ORG REGISTER] GABIM me email: {e}")
 
     return {"message": "Organizata u regjistrua. Kontrollo emailin tënd për të konfirmuar adresën."}
 
@@ -168,7 +187,12 @@ def verify_email(token: str, db: Session) -> dict:
     db.delete(verification)
     db.commit()
 
-    return {"message": "Email u konfirmua me sukses. Prisni aprovimin nga administratori."}
+    # mesazh i ndryshëm: APPLICANT mund të kyçet direkt, ORG_ADMIN pret aprovim
+    user_role = db.query(UserRole).filter(UserRole.user_id == user.id).first()
+    role_obj  = db.query(Role).filter(Role.id == user_role.role_id).first() if user_role else None
+    if role_obj and role_obj.name == "ORG_ADMIN":
+        return {"message": "Email u konfirmua! Prisni aprovimin nga administratori para se të kyçeni."}
+    return {"message": "Email u konfirmua me sukses. Tani mund të kyçeni."}
 
 
 # ─────────────────────────────────────────

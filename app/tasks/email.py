@@ -19,6 +19,40 @@ def _send_smtp(to: str, subject: str, html: str) -> None:
         server.sendmail(msg["From"], to, msg.as_string())
 
 
+@celery_app.task(name="send_verification_email", bind=True, max_retries=3)
+def send_verification_email(self, to: str, verify_link: str, full_name: str) -> dict:
+    try:
+        html = f"""
+        <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px;
+                    background:#0f1117;border-radius:12px;color:#e2e8f0;">
+          <div style="text-align:center;margin-bottom:24px;">
+            <span style="font-size:24px;font-weight:900;">
+              <span style="color:#fff;">GRANT</span><span style="color:#6366f1;">FLOW</span>
+            </span>
+          </div>
+          <h2 style="color:#fff;">Konfirmo adresën tënde të emailit</h2>
+          <p>Përshëndetje <strong>{full_name}</strong>,</p>
+          <p>Faleminderit që u regjistruat në GrantFlow. Për të vazhduar,
+             ju lutemi konfirmoni adresën tuaj të emailit duke klikuar butonin më poshtë.</p>
+          <div style="text-align:center;margin:28px 0;">
+            <a href="{verify_link}"
+               style="background:#6366f1;color:#fff;padding:12px 28px;border-radius:8px;
+                      text-decoration:none;font-weight:600;">
+              Konfirmo Emailin &#8594;
+            </a>
+          </div>
+          <p style="color:#64748b;font-size:12px;">
+            Ky link është i vlefshëm për <strong>24 orë</strong>.<br>
+            Nëse nuk e keni kërkuar këtë, mund ta injoroni këtë email.
+          </p>
+        </div>
+        """
+        _send_smtp(to, "GrantFlow — Konfirmo Emailin Tend", html)
+        return {"status": "sent", "to": to}
+    except Exception as exc:
+        raise self.retry(exc=exc, countdown=60)
+
+
 @celery_app.task(name="send_invitation_email", bind=True, max_retries=3)
 def send_invitation_email(self, to: str, invite_link: str, role: str, org_name: str = "") -> dict:
     try:
