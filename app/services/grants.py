@@ -96,7 +96,17 @@ def get_all_published_grants(
     """
     Për aplikantët pa tenant — merr të gjitha grantet PUBLISHED
     nga të gjitha organizatat aktive, me filtra opsionalë.
+    Redis cache: TTL 60 sekonda për secilën kombinim filtrash.
     """
+    from app.core.redis_client import cache_get, cache_set
+
+    cache_key = f"grants:public:{title or ''}:{applicant_type or ''}:{deadline_from or ''}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        print(f"[CACHE HIT]  {cache_key} — {len(cached)} grants nga Redis")
+        return cached
+    print(f"[CACHE MISS] {cache_key} — kërkon nga DB")
+
     tenants = db.query(Tenant).filter(Tenant.status == TenantStatus.ACTIVE).all()
     all_grants = []
 
@@ -141,6 +151,8 @@ def get_all_published_grants(
                 "questions":      [],
             })
 
+    cache_set(cache_key, all_grants, ttl=60)
+    print(f"[CACHE SET]  {cache_key} — {len(all_grants)} grants u ruajtën (TTL 60s)")
     return all_grants
 
 
@@ -245,6 +257,9 @@ def publish_grant(grant_id: str, user: dict, db: Session) -> Grant:
     db.commit()
     log_action(user["user_id"], "PUBLISH_GRANT", "grant", str(grant.id),
                tenant_id=user.get("tenant_id"), details={"title": grant.title})
+    # Invalido cache — grant i ri u bë publik
+    from app.core.redis_client import cache_delete_pattern
+    cache_delete_pattern("grants:public:*")
     return grant
 
 
@@ -256,6 +271,9 @@ def close_grant(grant_id: str, user: dict, db: Session) -> Grant:
     db.commit()
     log_action(user["user_id"], "CLOSE_GRANT", "grant", str(grant.id),
                tenant_id=user.get("tenant_id"), details={"title": grant.title})
+    # Invalido cache — grant u mbyll
+    from app.core.redis_client import cache_delete_pattern
+    cache_delete_pattern("grants:public:*")
     return grant
 
 
