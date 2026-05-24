@@ -15,7 +15,7 @@ class ProfileResponse(BaseModel):
     role: str
     tenant_slug: Optional[str] = None
 
-    # ApplicantProfile — të përbashkëta
+    # ApplicantProfile
     applicant_type: Optional[ApplicantType] = None
     has_prev_grant: Optional[bool] = None
     description: Optional[str] = None
@@ -66,7 +66,7 @@ class ProfileUpdateRequest(BaseModel):
     address: Optional[str] = None
     profile_picture: Optional[str] = None
 
-    # applicant_profiles — te perbashketat
+    # applicant_profiles
     applicant_type: Optional[ApplicantType] = None
     has_prev_grant: Optional[bool] = None
     description: Optional[str] = None

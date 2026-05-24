@@ -17,7 +17,7 @@ def _require_org_admin(user: dict):
 
 
 def get_db_for_slug(tenant_slug: str):
-    """Hap sesion me search_path për slug-un e dhënë."""
+    """Hapet sesioni me search_path për slug te dhene."""
     db = SessionLocal()
     try:
         schema_name = f"tenant_{tenant_slug.replace('-', '_')}"
@@ -88,7 +88,7 @@ def get_grant(
             # ORG_ADMIN / COMMISSIONER — di schemën e tij
             schema_name = f"tenant_{slug.replace('-', '_')}"
         else:
-            # APPLICANT — gjej schemën automatikisht nga grant_id
+            #gjen schemën automatikisht nga grant_id
             from app.services.applications import find_schema_for_grant
             import uuid as _uuid
             try:
@@ -99,7 +99,7 @@ def get_grant(
 
         db.execute(text(f'SET search_path TO "{schema_name}", public'))
         result = grant_service.get_grant_detail(grant_id, db)
-        # Shto tenant info nëse mungon slug-u (aplikant)
+        # Shton tenant info nëse mungon slug
         if not slug:
             schema_slug = schema_name.replace("tenant_", "", 1)
             result["tenant_slug"] = schema_slug
@@ -155,12 +155,6 @@ def finalize_grant(
     user=Depends(get_current_user),
     db: Session = Depends(get_tenant_db),
 ):
-    """
-    ORG_ADMIN mbyll zgjedhjen:
-    - Rendit aplikimet e dorëzuara/në shqyrtim sipas final_score DESC, submitted_at ASC
-    - Top N (max_applicants) → APPROVED
-    - Të tjerët → REJECTED
-    - Shkruan rank_position
-    """
+
     _require_org_admin(user)
     return grant_service.finalize_grant(grant_id, user, db)

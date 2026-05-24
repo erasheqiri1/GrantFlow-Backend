@@ -18,7 +18,7 @@ def _get_grant(grant_id: str, db: Session) -> Grant:
 
 
 # ─────────────────────────────────────────
-# CRITERIA
+# Kriteret
 # ─────────────────────────────────────────
 
 def create_criteria(grant_id: str, data: CriteriaCreate, db: Session) -> Criteria:
@@ -69,7 +69,7 @@ def delete_criteria(grant_id: str, criteria_id: str, db: Session) -> None:
 
 
 # ─────────────────────────────────────────
-# QUESTIONS
+# Pyetjet
 # ─────────────────────────────────────────
 
 def create_question(grant_id: str, data: QuestionCreate, db: Session) -> ApplicationQuestion:

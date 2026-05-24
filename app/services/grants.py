@@ -101,7 +101,6 @@ def get_grants(
 
     grants = query.all()
 
-    # Auto-mbyll grantet PUBLISHED me deadline të kaluar
     now = datetime.now(timezone.utc)
     changed = False
     for g in grants:
@@ -115,7 +114,6 @@ def get_grants(
     if changed:
         db.commit()
 
-    # Kthe dicts me questions: [] — shmanget gabimi i serializimit të ORM
     return [
         {
             "id":             g.id,
@@ -146,11 +144,7 @@ def get_all_published_grants(
     budget_max: float = None,
     sort: str = None,
 ) -> list:
-    """
-    Për aplikantët pa tenant — merr të gjitha grantet PUBLISHED
-    nga të gjitha organizatat aktive, me filtra opsionalë.
-    Redis cache: TTL 60 sekonda për secilën kombinim filtrash.
-    """
+
     from app.core.redis_client import cache_get, cache_set
 
     cache_key = (
@@ -233,10 +227,7 @@ def get_all_published_grants(
 
 
 def get_grant_detail(grant_id: str, db: Session) -> dict:
-    """
-    Kthen grantin + pyetjet + kriteret.
-    Përdoret nga GET /grants/{id} — aplikanti sheh çfarë duhet t'i përgjigjet dhe si vlerësohet.
-    """
+
     grant = get_grant(grant_id, db)
     questions = (
         db.query(ApplicationQuestion)
@@ -354,14 +345,7 @@ def close_grant(grant_id: str, user: dict, db: Session) -> Grant:
 
 
 def finalize_grant(grant_id: str, user: dict, db: Session) -> dict:
-    """
-    Mbyll zgjedhjen e fituesve:
-    1. Merr të gjitha aplikimet SUBMITTED / UNDER_REVIEW të këtij granti
-    2. Rendit: final_score DESC, submitted_at ASC (tiebreaker = kush dërgoi i pari)
-    3. Top N (max_applicants) → APPROVED
-    4. Të tjerët → REJECTED
-    5. Shkruan rank_position tek ai_scores
-    """
+
     grant = get_grant(grant_id, db)
 
     # Lejo finalizim edhe nëse granti është ende PUBLISHED por deadline ka kaluar
@@ -417,7 +401,7 @@ def finalize_grant(grant_id: str, user: dict, db: Session) -> dict:
             app.decided_at = now
             rejected_count += 1
 
-        # Shkruaj rank_position
+        # Shkruan rank_position
         if score_row:
             score_row.rank_position = rank
         elif rank <= (max_n or rank):
@@ -435,7 +419,6 @@ def finalize_grant(grant_id: str, user: dict, db: Session) -> dict:
                tenant_id=user.get("tenant_id"),
                details={"approved": approved_count, "rejected": rejected_count})
 
-    # Dërgo email për çdo aplikant
     try:
         from app.tasks.email import send_application_result_email
         from sqlalchemy import text as _text

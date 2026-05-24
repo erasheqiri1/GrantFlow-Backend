@@ -1,7 +1,4 @@
-"""
-Unit teste për funksionet e auth service.
-Testohen funksionet direkt — pa HTTP request.
-"""
+
 import jwt
 import pytest
 from app.services.auth import hash_password, verify_password, create_token
@@ -26,7 +23,7 @@ class TestPasswordHashing:
         assert verify_password("wrong_password", hashed) is False
 
     def test_same_password_different_hash(self):
-        """bcrypt gjeneron hash të ndryshëm çdo herë (salt i rastësishëm)."""
+        """bcrypt gjeneron hash të ndryshëm cdo herë"""
         h1 = hash_password("secret123")
         h2 = hash_password("secret123")
         assert h1 != h2

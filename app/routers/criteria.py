@@ -18,7 +18,7 @@ def _require_org_admin(user: dict):
 
 
 # ─────────────────────────────────────────
-# CRITERIA
+# Kriteret
 # ─────────────────────────────────────────
 
 @router.post("/{grant_id}/criteria", response_model=List[CriteriaResponse], status_code=201)
@@ -65,7 +65,7 @@ def delete_criteria(
 
 
 # ─────────────────────────────────────────
-# QUESTIONS
+# Pyetjet
 # ─────────────────────────────────────────
 
 @router.post("/{grant_id}/questions", response_model=List[QuestionResponse], status_code=201)

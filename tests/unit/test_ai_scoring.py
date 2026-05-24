@@ -1,7 +1,4 @@
-"""
-Unit teste për funksionet e ai_scoring service.
-Testohen funksionet pa DB dhe pa thirrje AI.
-"""
+
 import pytest
 from unittest.mock import MagicMock
 from app.services.ai_scoring import _heuristic_score, _build_prompt, _get_client

@@ -41,19 +41,19 @@ def _require_applicant(user: dict):
 
 
 def _require_reviewer(user: dict):
-    """ORG_ADMIN dhe COMMISSIONER mund të shohin aplikimet."""
+    """Funksioni tregon qe vetem ORG_ADMIN dhe COMMISSIONER mund të shohin aplikimet."""
     if user["role"] not in ("ORG_ADMIN", "COMMISSIONER"):
         raise HTTPException(status_code=403, detail="Nuk ke leje")
 
 
 def _require_commissioner(user: dict):
-    """Vetëm COMMISSIONER mund të marrë vendime (aprovim/refuzim)."""
+    """Funksioni tregon qe vetem COMMISSIONER munden me marr vendime."""
     if user["role"] != "COMMISSIONER":
         raise HTTPException(status_code=403, detail="Vetëm COMMISSIONER mund të marrë vendime")
 
 
 def _require_org_admin(user: dict):
-    """Vetëm ORG_ADMIN mund të caktojë komisionerë."""
+    """Funksioni tregon qe vetëm ORG_ADMIN mund të caktoj komisionerin."""
     if user["role"] != "ORG_ADMIN":
         raise HTTPException(status_code=403, detail="Vetëm ORG_ADMIN mund të kryejë këtë veprim")
 
@@ -63,7 +63,7 @@ def create_application(
     data: ApplicationCreate,
     user=Depends(get_current_user),
 ):
-    """Sistemi vetë e gjen tenant-in nga grant_id — aplikanti nuk duhet të dijë."""
+    """Sistemi vete e gjen tenant-in nga grant_id."""
     _require_applicant(user)
     # hap sesion publik për të gjetur schemën
     db = SessionLocal()
@@ -234,7 +234,7 @@ def assign_application(
     user=Depends(get_current_user),
     db: Session = Depends(get_tenant_db),
 ):
-    """ORG_ADMIN ricakton komisionerin për një aplikim."""
+    """Funksioni tregon qe ORG_ADMIN mund te ricakton komisionerin për një aplikim."""
     _require_org_admin(user)
     return app_service.assign_application(application_id, data.commissioner_id, db)
 
@@ -290,7 +290,7 @@ def get_attachments(
     application_id: str,
     user=Depends(get_current_user),
 ):
-    """Merr listën e dokumenteve të ngarkuara për aplikimin."""
+    """Funkaioni merr listën e dokumenteve të ngarkuara për aplikimin."""
     pub_db = SessionLocal()
     try:
         schema_name = app_service.find_schema_for_application(application_id, pub_db)
@@ -309,7 +309,7 @@ def score_application(
     application_id: str,
     user=Depends(get_current_user),
 ):
-    """Nis vlerësimin AI në background (Celery). Kthen 202 menjëherë."""
+    """Funkaioni tregon qe nis vlerësimin AI në background (Celery). Kthen 202 menjëherë."""
     _require_reviewer(user)
     pub_db = SessionLocal()
     try:
@@ -336,7 +336,7 @@ def get_score(
     application_id: str,
     user=Depends(get_current_user),
 ):
-    """Merr rezultatin e AI për aplikimin (pollon derisa të jetë gati)."""
+    """Funksioni tregon qe merret rezultati i AI për aplikimin (pollon derisa të jetë gati)."""
     _require_reviewer(user)
     pub_db = SessionLocal()
     try:
@@ -356,7 +356,7 @@ def submit_commissioner_score(
     data: CommissionerScoreRequest,
     user=Depends(get_current_user),
 ):
-    """Komisioner ose ORG_ADMIN jep pikët (0-100). Rillogarit final_score."""
+    """Funksioni tregon qe komisioneri ose ORG_ADMIN jep pikët (0-100)."""
     _require_reviewer(user)
     pub_db = SessionLocal()
     try:

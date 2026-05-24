@@ -44,7 +44,7 @@ def create_token(user_id: str, role: str, tenant_slug: str | None) -> str:
 
 
 # ─────────────────────────────────────────
-# REGISTER — Applicant
+# REGISTER — Aplikanti
 # ─────────────────────────────────────────
 
 def register_user(data: RegisterRequest, db: Session) -> dict:
@@ -97,7 +97,7 @@ def register_user(data: RegisterRequest, db: Session) -> dict:
 
 
 # ─────────────────────────────────────────
-# REGISTER — Organization
+# REGISTER — Organizata
 # ─────────────────────────────────────────
 
 def register_org(data: RegisterOrgRequest, db: Session) -> dict:
@@ -187,7 +187,6 @@ def verify_email(token: str, db: Session) -> dict:
     db.delete(verification)
     db.commit()
 
-    # mesazh i ndryshëm: APPLICANT mund të kyçet direkt, ORG_ADMIN pret aprovim
     user_role = db.query(UserRole).filter(UserRole.user_id == user.id).first()
     role_obj  = db.query(Role).filter(Role.id == user_role.role_id).first() if user_role else None
     if role_obj and role_obj.name == "ORG_ADMIN":
@@ -209,11 +208,10 @@ def login_user(data: LoginRequest, db: Session) -> TokenResponse:
             raise HTTPException(status_code=403, detail="Konfirmo emailin tënd para se të kyçesh")
         raise HTTPException(status_code=403, detail="Llogaria është joaktive")
 
-    # gjej rolin
+    # gjen rolin
     tenant_slug_for_token = data.tenant_slug
 
     if data.tenant_slug:
-        # Slug i dhënë eksplicitisht — valido dhe gjej rolin
         tenant = db.query(Tenant).filter(Tenant.slug == data.tenant_slug).first()
         if not tenant:
             raise HTTPException(status_code=404, detail="Organizata nuk u gjet")
@@ -225,21 +223,18 @@ def login_user(data: LoginRequest, db: Session) -> TokenResponse:
             UserRole.tenant_id == tenant.id
         ).first()
 
-        # fallback te roli global nëse nuk ka rol specifik tenant
         if not user_role:
             user_role = db.query(UserRole).filter(
                 UserRole.user_id == user.id,
                 UserRole.tenant_id == None
             ).first()
     else:
-        # Pa slug — provoj rolin global (applicant)
         user_role = db.query(UserRole).filter(
             UserRole.user_id == user.id,
             UserRole.tenant_id == None
         ).first()
 
         if not user_role:
-            # Nuk ka rol global — auto-detekto tenant-in nga user_roles
             tenant_roles = (
                 db.query(UserRole)
                 .filter(UserRole.user_id == user.id, UserRole.tenant_id != None)
@@ -247,7 +242,6 @@ def login_user(data: LoginRequest, db: Session) -> TokenResponse:
             )
 
             if len(tenant_roles) == 1:
-                # Vetëm një tenant — kyçu automatikisht pa slug
                 user_role = tenant_roles[0]
                 tenant = db.query(Tenant).filter(Tenant.id == user_role.tenant_id).first()
                 if tenant:
@@ -255,7 +249,6 @@ def login_user(data: LoginRequest, db: Session) -> TokenResponse:
                         raise HTTPException(status_code=403, detail="Organizata nuk është aprovuar ende")
                     tenant_slug_for_token = tenant.slug
             elif len(tenant_roles) > 1:
-                # Shumë tenantë — kërko slug eksplicit
                 slugs = []
                 for tr in tenant_roles:
                     t = db.query(Tenant).filter(Tenant.id == tr.tenant_id).first()
@@ -280,7 +273,7 @@ def login_user(data: LoginRequest, db: Session) -> TokenResponse:
 
 def forgot_password(data: ForgotPasswordRequest, db: Session) -> dict:
     user = db.query(User).filter(User.email == data.email).first()
-    # nuk tregojmë nëse ekziston apo jo — security
+    # nuk tregojmë nëse ekziston apo jo
     if not user:
         return {"message": "Nëse email ekziston, do të marrësh udhëzime."}
 
@@ -296,8 +289,6 @@ def forgot_password(data: ForgotPasswordRequest, db: Session) -> dict:
     db.add(reset_token)
     db.commit()
 
-    # TODO: dërgo email me token (Celery task)
-    # send_reset_email.delay(user.email, token)
 
     return {"message": "Nëse email ekziston, do të marrësh udhëzime."}
 
@@ -333,11 +324,7 @@ def reset_password(data: ResetPasswordRequest, db: Session) -> dict:
 # ─────────────────────────────────────────
 
 def accept_invite(data: InviteAcceptRequest, db: Session) -> TokenResponse:
-    # gjej invitation në tenant schema
-    # NOTE: tenant_slug duhet të vijë nga token — këtu e marrim nga JWT i ftesës
-    # Për thjeshtësi, invitation token kodon tenant_slug brenda
 
-    # decode token i ftesës për të marrë tenant_slug
     try:
         payload = jwt.decode(data.token, settings.SECRET_KEY, algorithms=["HS256"])
         tenant_slug = payload.get("tenant_slug")
@@ -348,14 +335,13 @@ def accept_invite(data: InviteAcceptRequest, db: Session) -> TokenResponse:
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=400, detail="Token i pavlefshëm")
 
-    # Gjej tenant nëse ka slug (SUPER_ADMIN nuk ka tenant)
     tenant = None
     if tenant_slug:
         tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
         if not tenant:
             raise HTTPException(status_code=404, detail="Organizata nuk u gjet")
 
-    # kontrollo nëse email ekziston
+    # kontrollon nëse email ekziston
     existing = db.query(User).filter(User.email == invite_email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email ekziston tashmë")
