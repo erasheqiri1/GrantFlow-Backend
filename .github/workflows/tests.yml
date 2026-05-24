@@ -32,5 +32,27 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/grantflow_test
           SECRET_KEY: test-secret-key-minimum-32-characters-long
           REDIS_URL: redis://localhost:6379/0
+          OPENAI_API_KEY: sk-placeholder
+          MAIL_USERNAME: test@test.com
+          MAIL_PASSWORD: test
+          MAIL_FROM: test@test.com
+          MAIL_SERVER: localhost
+          MAIL_PORT: "587"
+          FRONTEND_URL: http://localhost:5173
         run: |
           python -m pytest tests/unit/ -v
+
+      - name: Run API tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/grantflow_test
+          SECRET_KEY: test-secret-key-minimum-32-characters-long
+          REDIS_URL: redis://localhost:6379/0
+          OPENAI_API_KEY: sk-placeholder
+          MAIL_USERNAME: test@test.com
+          MAIL_PASSWORD: test
+          MAIL_FROM: test@test.com
+          MAIL_SERVER: localhost
+          MAIL_PORT: "587"
+          FRONTEND_URL: http://localhost:5173
+        run: |
+          python -m pytest tests/api/ -v
