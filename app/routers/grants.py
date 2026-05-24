@@ -44,6 +44,10 @@ def get_grants(
     title:          Optional[str] = Query(None, description="Kërko me fjalë kyçe në titull"),
     applicant_type: Optional[str] = Query(None, description="ANY | STUDENT | BUSINESS | ORGANIZATION | INDIVIDUAL"),
     deadline_from:  Optional[str] = Query(None, description="Grante me afat nga (YYYY-MM-DD) — tregon grante që skadojnë në ose pas kësaj date"),
+    deadline_to:    Optional[str] = Query(None, description="Grante me afat deri (YYYY-MM-DD)"),
+    budget_min:     Optional[float] = Query(None, description="Buxheti minimal"),
+    budget_max:     Optional[float] = Query(None, description="Buxheti maksimal"),
+    sort:           Optional[str] = Query(None, description="created_desc | deadline_asc | deadline_desc | budget_asc | budget_desc | title_asc"),
     user=Depends(get_current_user),
 ):
     slug = getattr(request.state, "tenant_slug", None)
@@ -52,7 +56,8 @@ def get_grants(
         db = SessionLocal()
         try:
             return grant_service.get_all_published_grants(
-                db, title, applicant_type, deadline_from,
+                db, title, applicant_type, deadline_from, deadline_to,
+                budget_min, budget_max, sort,
             )
         finally:
             db.close()
@@ -62,7 +67,8 @@ def get_grants(
         schema_name = f"tenant_{slug.replace('-', '_')}"
         db.execute(text(f'SET search_path TO "{schema_name}", public'))
         return grant_service.get_grants(
-            db, status, title, applicant_type, deadline_from,
+            db, status, title, applicant_type, deadline_from, deadline_to,
+            budget_min, budget_max, sort,
         )
     finally:
         db.close()

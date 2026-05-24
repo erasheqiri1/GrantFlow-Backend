@@ -1,12 +1,37 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import text, func
 from app.models.tenant.models import Grant, GrantStatus, ApplicationQuestion, Application, ApplicationStatus, AIScore, Criteria
 from app.models.public.models import Tenant, TenantStatus
 from app.schemas.grants import GrantCreate, GrantUpdate
 from app.services.audit import log_action
+
+
+def _parse_filter_date(value: str, end_of_day: bool = False):
+    if not value:
+        return None
+    try:
+        if len(value) == 10:
+            parsed = datetime.fromisoformat(value)
+            parsed = datetime.combine(parsed.date(), time.max if end_of_day else time.min)
+        else:
+            parsed = datetime.fromisoformat(value)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed
+    except ValueError:
+        return None
+
+
+def _grant_amount(value):
+    if value is None:
+        return 0
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0
 
 
 def create_grant(data: GrantCreate, user: dict, db: Session) -> Grant:
@@ -36,6 +61,10 @@ def get_grants(
     title: str = None,
     applicant_type: str = None,
     deadline_from: str = None,
+    deadline_to: str = None,
+    budget_min: float = None,
+    budget_max: float = None,
+    sort: str = None,
 ) -> list:
     query = db.query(Grant)
     if status:
@@ -44,13 +73,33 @@ def get_grants(
         query = query.filter(Grant.title.ilike(f"%{title}%"))
     if applicant_type:
         query = query.filter(Grant.applicant_type == applicant_type)
-    if deadline_from:
-        try:
-            dt = datetime.fromisoformat(deadline_from).replace(tzinfo=timezone.utc)
-            query = query.filter(Grant.deadline >= dt)
-        except ValueError:
-            pass
-    grants = query.order_by(Grant.created_at.desc()).all()
+    start_date = _parse_filter_date(deadline_from)
+    end_date = _parse_filter_date(deadline_to, end_of_day=True)
+    if start_date:
+        query = query.filter(Grant.deadline >= start_date)
+    if end_date:
+        query = query.filter(Grant.deadline <= end_date)
+
+    amount = func.coalesce(Grant.grant_value, Grant.budget, 0)
+    if budget_min is not None:
+        query = query.filter(amount >= budget_min)
+    if budget_max is not None:
+        query = query.filter(amount <= budget_max)
+
+    if sort == "deadline_asc":
+        query = query.order_by(Grant.deadline.asc().nullslast(), Grant.created_at.desc())
+    elif sort == "deadline_desc":
+        query = query.order_by(Grant.deadline.desc().nullslast(), Grant.created_at.desc())
+    elif sort == "budget_asc":
+        query = query.order_by(amount.asc(), Grant.created_at.desc())
+    elif sort == "budget_desc":
+        query = query.order_by(amount.desc(), Grant.created_at.desc())
+    elif sort == "title_asc":
+        query = query.order_by(Grant.title.asc(), Grant.created_at.desc())
+    else:
+        query = query.order_by(Grant.created_at.desc())
+
+    grants = query.all()
 
     # Auto-mbyll grantet PUBLISHED me deadline të kaluar
     now = datetime.now(timezone.utc)
@@ -92,6 +141,10 @@ def get_all_published_grants(
     title: str = None,
     applicant_type: str = None,
     deadline_from: str = None,
+    deadline_to: str = None,
+    budget_min: float = None,
+    budget_max: float = None,
+    sort: str = None,
 ) -> list:
     """
     Për aplikantët pa tenant — merr të gjitha grantet PUBLISHED
@@ -100,7 +153,10 @@ def get_all_published_grants(
     """
     from app.core.redis_client import cache_get, cache_set
 
-    cache_key = f"grants:public:{title or ''}:{applicant_type or ''}:{deadline_from or ''}"
+    cache_key = (
+        f"grants:public:{title or ''}:{applicant_type or ''}:{deadline_from or ''}:"
+        f"{deadline_to or ''}:{budget_min or ''}:{budget_max or ''}:{sort or ''}"
+    )
     cached = cache_get(cache_key)
     if cached is not None:
         print(f"[CACHE HIT]  {cache_key} — {len(cached)} grants nga Redis")
@@ -109,6 +165,8 @@ def get_all_published_grants(
 
     tenants = db.query(Tenant).filter(Tenant.status == TenantStatus.ACTIVE).all()
     all_grants = []
+    start_date = _parse_filter_date(deadline_from)
+    end_date = _parse_filter_date(deadline_to, end_of_day=True)
 
     for tenant in tenants:
         schema_name = f"tenant_{tenant.slug.replace('-', '_')}"
@@ -130,7 +188,14 @@ def get_all_published_grants(
                 continue
             if applicant_type and row.applicant_type != applicant_type:
                 continue
-            if deadline_from and row.deadline and row.deadline.date().isoformat() < deadline_from:
+            if start_date and (not row.deadline or row.deadline < start_date):
+                continue
+            if end_date and (not row.deadline or row.deadline > end_date):
+                continue
+            amount = _grant_amount(row.grant_value if row.grant_value is not None else row.budget)
+            if budget_min is not None and amount < budget_min:
+                continue
+            if budget_max is not None and amount > budget_max:
                 continue
 
             all_grants.append({
@@ -150,6 +215,17 @@ def get_all_published_grants(
                 "org_name":       tenant.name,
                 "questions":      [],
             })
+
+    if sort == "deadline_asc":
+        all_grants.sort(key=lambda g: (g["deadline"] is None, g["deadline"] or datetime.max.replace(tzinfo=timezone.utc)))
+    elif sort == "deadline_desc":
+        all_grants.sort(key=lambda g: (g["deadline"] is None, g["deadline"] or datetime.min.replace(tzinfo=timezone.utc)), reverse=True)
+    elif sort == "budget_asc":
+        all_grants.sort(key=lambda g: _grant_amount(g["grant_value"] if g["grant_value"] is not None else g["budget"]))
+    elif sort == "budget_desc":
+        all_grants.sort(key=lambda g: _grant_amount(g["grant_value"] if g["grant_value"] is not None else g["budget"]), reverse=True)
+    elif sort == "title_asc":
+        all_grants.sort(key=lambda g: (g["title"] or "").lower())
 
     cache_set(cache_key, all_grants, ttl=60)
     print(f"[CACHE SET]  {cache_key} — {len(all_grants)} grants u ruajtën (TTL 60s)")
