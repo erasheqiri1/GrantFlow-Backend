@@ -11,6 +11,11 @@ from app.services import tenants as tenant_service
 router = APIRouter(prefix="/tenants", tags=["Tenants"])
 
 
+@router.get("/public-stats", summary="Statistika publike te platformes")
+def public_platform_stats(db: Session = Depends(get_db)):
+    return tenant_service.get_platform_stats(db)
+
+
 def require_super_admin(current_user: dict = Depends(get_current_user)) -> dict:
     if current_user["role"] != "SUPER_ADMIN":
         raise HTTPException(status_code=403, detail="Vetëm SUPER_ADMIN ka qasje në këtë endpoint")

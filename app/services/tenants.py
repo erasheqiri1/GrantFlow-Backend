@@ -99,10 +99,10 @@ def reject_tenant(db: Session, tenant_id: str, user_id: str) -> dict:
 
 
 def get_platform_stats(db: Session) -> dict:
-    active_tenants = db.query(Tenant).filter(Tenant.status == TenantStatus.ACTIVE).all()
+    tenants = db.query(Tenant).all()
     total_grants = 0
     total_applications = 0
-    for tenant in active_tenants:
+    for tenant in tenants:
         schema = f"tenant_{tenant.slug.replace('-', '_')}"
         try:
             g = db.execute(
@@ -122,5 +122,5 @@ def get_platform_stats(db: Session) -> dict:
     return {
         "total_grants":       total_grants,
         "total_applications": total_applications,
-        "total_tenants":      len(active_tenants),
+        "total_tenants":      len(tenants),
     }

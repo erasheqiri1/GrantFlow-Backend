@@ -14,16 +14,19 @@ PUBLIC_PATHS = [
     "/auth/register",
     "/auth/login",
     "/auth/register-org",
+    "/auth/register-org/upload-doc",
     "/auth/forgot-password",
     "/auth/reset-password",
     "/auth/invite/accept",
+    "/auth/verify-email",
+    "/tenants/public-stats",
 ]
 
 
 class TenantMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
 
-        if request.url.path in PUBLIC_PATHS:
+        if request.url.path in PUBLIC_PATHS or request.url.path.startswith("/tenants/public-stats"):
             return await call_next(request)
 
 

@@ -18,10 +18,12 @@ PUBLIC_PATHS = [
     "/auth/reset-password",
     "/auth/invite/accept",
     "/auth/verify-email",
+    "/tenants/public-stats",
 ]
 
 PUBLIC_PREFIXES = [
     "/uploads",
+    "/tenants/public-stats",
 ]
 
 
