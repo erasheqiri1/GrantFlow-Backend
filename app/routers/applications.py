@@ -233,7 +233,7 @@ def get_attachments(
     application_id: str,
     user=Depends(get_current_user),
 ):
-    """Merr listën e dokumenteve të ngarkuara për aplikimin."""
+    """Funkaioni merr listën e dokumenteve të ngarkuara për aplikimin."""
     pub_db = SessionLocal()
     try:
         schema_name = app_service.find_schema_for_application(application_id, pub_db)

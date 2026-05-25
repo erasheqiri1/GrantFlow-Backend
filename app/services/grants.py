@@ -147,11 +147,7 @@ def get_all_published_grants(
     budget_max: float = None,
     sort: str = None,
 ) -> list:
-    """
-    Për aplikantët pa tenant — merr të gjitha grantet PUBLISHED
-    nga të gjitha organizatat aktive, me filtra opsionalë.
-    Redis cache: TTL 60 sekonda për secilën kombinim filtrash.
-    """
+
     from app.core.redis_client import cache_get, cache_set
 
     cache_key = (
@@ -234,10 +230,7 @@ def get_all_published_grants(
 
 
 def get_grant_detail(grant_id: str, db: Session) -> dict:
-    """
-    Kthen grantin + pyetjet + kriteret.
-    Përdoret nga GET /grants/{id} — aplikanti sheh çfarë duhet t'i përgjigjet dhe si vlerësohet.
-    """
+
     grant = get_grant(grant_id, db)
     questions = (
         db.query(ApplicationQuestion)
@@ -423,7 +416,7 @@ def finalize_grant(grant_id: str, user: dict, db: Session) -> dict:
             app.decided_at = now
             rejected_count += 1
 
-        # Shkruaj rank_position
+        # Shkruan rank_position
         if score_row:
             score_row.rank_position = rank
         elif rank <= (max_n or rank):
@@ -443,7 +436,6 @@ def finalize_grant(grant_id: str, user: dict, db: Session) -> dict:
                tenant_id=user.get("tenant_id"),
                details={"approved": approved_count, "rejected": rejected_count})
 
-    # Dërgo email për çdo aplikant
     try:
         from app.tasks.email import send_application_result_email
         from sqlalchemy import text as _text

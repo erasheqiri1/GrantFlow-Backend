@@ -14,7 +14,6 @@ from app.services.audit import log_action
 
 
 def find_schema_for_application(application_id: str, db: Session) -> str:
-    """Kërkon në të gjitha schemat aktive për aplikimin me këtë ID."""
     tenants = db.query(Tenant).filter(Tenant.status == TenantStatus.ACTIVE).all()
     for tenant in tenants:
         schema_name = f"tenant_{tenant.slug.replace('-', '_')}"
@@ -31,7 +30,6 @@ def find_schema_for_application(application_id: str, db: Session) -> str:
 
 
 def find_schemas_for_user(user_id: str, db: Session) -> list:
-    """Kthen listën e schemave ku ky user ka aplikime."""
     tenants = db.query(Tenant).filter(Tenant.status == TenantStatus.ACTIVE).all()
     schemas = []
     for tenant in tenants:
@@ -49,10 +47,7 @@ def find_schemas_for_user(user_id: str, db: Session) -> list:
 
 
 def find_schema_for_grant(grant_id: uuid.UUID, db: Session) -> str:
-    """
-    Kërkon në të gjitha schemat aktive për grant-in me këtë ID.
-    Kthen schema_name (p.sh. 'tenant_elo') ose ngre 404.
-    """
+
     tenants = db.query(Tenant).filter(Tenant.status == TenantStatus.ACTIVE).all()
     for tenant in tenants:
         schema_name = f"tenant_{tenant.slug.replace('-', '_')}"
@@ -70,7 +65,6 @@ def find_schema_for_grant(grant_id: uuid.UUID, db: Session) -> str:
 
 
 def create_application(data: ApplicationCreate, user: dict, db: Session) -> Application:
-    # kontrollo nëse granti ekziston dhe është PUBLISHED
     try:
         gid = uuid.UUID(str(data.grant_id))
     except ValueError:
@@ -82,14 +76,12 @@ def create_application(data: ApplicationCreate, user: dict, db: Session) -> Appl
     if grant.status != GrantStatus.PUBLISHED:
         raise HTTPException(status_code=400, detail="Mund të aplikosh vetëm për grante PUBLISHED")
 
-    # kontrollo nëse profili i aplikantit është i plotë
     applicant_profile = db.query(ApplicantProfile).filter(
         ApplicantProfile.user_id == uuid.UUID(user["user_id"])
     ).first()
     if not applicant_profile or not applicant_profile.applicant_type:
         raise HTTPException(status_code=400, detail="PROFILE_INCOMPLETE")
 
-    # kontrollo nëse tipi i aplikantit përputhet me kërkesat e grantit
     if grant.applicant_type.value != "ANY":
         if applicant_profile.applicant_type.value != grant.applicant_type.value:
             raise HTTPException(
@@ -97,7 +89,6 @@ def create_application(data: ApplicationCreate, user: dict, db: Session) -> Appl
                 detail=f"APPLICANT_TYPE_MISMATCH:{grant.applicant_type.value}"
             )
 
-    # kontrollo nëse ka aplikuar tashmë
     existing = db.query(Application).filter(
         Application.grant_id == gid,
         Application.user_id == uuid.UUID(user["user_id"])
@@ -131,7 +122,6 @@ def create_application(data: ApplicationCreate, user: dict, db: Session) -> Appl
 
 
 def _enrich_with_grant_title(app: Application, db: Session) -> None:
-    """Shton grant_title si atribut dinamik te objekti Application."""
     try:
         grant = db.query(Grant).filter(Grant.id == app.grant_id).first()
         app.__dict__['grant_title'] = grant.title if grant else None
@@ -140,7 +130,7 @@ def _enrich_with_grant_title(app: Application, db: Session) -> None:
 
 
 def _enrich_with_attachments(app: Application, db: Session) -> None:
-    """Shton listën e attachments si atribut dinamik te objekti Application."""
+    """Funksioni shton listën e attachments si atribut dinamik te objekti Application."""
     try:
         attachments = db.query(Attachment).filter(
             Attachment.application_id == app.id
@@ -151,7 +141,7 @@ def _enrich_with_attachments(app: Application, db: Session) -> None:
 
 
 def _enrich_with_user_info(app: Application, db: Session) -> None:
-    """Shton email dhe emrin e aplikantit si atribute dinamike."""
+    """Funksioni shton email dhe emrin e aplikantit si atribute dinamike."""
     try:
         row = db.execute(text(
             "SELECT email, first_name, last_name FROM public.users WHERE id = :uid"
@@ -168,7 +158,7 @@ def _enrich_with_user_info(app: Application, db: Session) -> None:
 
 
 def _enrich_with_answers(app: Application, db: Session) -> None:
-    """Shton përgjigjet e aplikantit bashkë me tekstin e pyetjes."""
+    """Funksioni shton përgjigjet e aplikantit bashkë me tekstin e pyetjes."""
     try:
         answers = (
             db.query(ApplicationAnswer)
@@ -215,7 +205,6 @@ def get_application(application_id: str, db: Session) -> Application:
 
 def add_attachment(application_id: str, file_name: str, file_path: str,
                    file_type: str, size_bytes: int, db: Session) -> Attachment:
-    """Shton një attachment te aplikimi."""
     try:
         aid = uuid.UUID(application_id)
     except ValueError:
@@ -233,7 +222,6 @@ def add_attachment(application_id: str, file_name: str, file_path: str,
 
 
 def get_attachments(application_id: str, db: Session) -> list:
-    """Kthen listën e attachments për një aplikim."""
     try:
         aid = uuid.UUID(application_id)
     except ValueError:
@@ -253,7 +241,6 @@ def update_application(application_id: str, data: ApplicationUpdate, user: dict,
         app.motivation_letter = data.motivation_letter
 
     if data.answers is not None:
-        # fshi përgjigjet e vjetra dhe shto të reja
         db.query(ApplicationAnswer).filter(
             ApplicationAnswer.application_id == app.id
         ).delete()
@@ -269,30 +256,22 @@ def update_application(application_id: str, data: ApplicationUpdate, user: dict,
 
 
 def _auto_assign_commissioner(app: Application, db: Session) -> None:
-    """
-    Gjen komisionerin me ngarkesën më të vogël dhe e cakton te aplikimi.
-    Thirret automatikisht kur aplikimi submit-ohet.
-    Nëse dështon (pa komisioner), nuk e ndal submit-in.
-    """
+
     try:
-        # Merr schema_name nga search_path aktive
         result = db.execute(text("SHOW search_path")).fetchone()
         schema_name = result[0].split(',')[0].strip().strip('"')
         tenant_slug = schema_name.replace('tenant_', '', 1)
 
-        # Merr tenant
         tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
         if not tenant:
             return
 
-        # Merr role_id të COMMISSIONER
         commissioner_role = db.execute(text(
             "SELECT id FROM public.roles WHERE name = 'COMMISSIONER'"
         )).fetchone()
         if not commissioner_role:
             return
 
-        # Merr të gjithë komisionerët e këtij tenant
         rows = db.execute(text("""
             SELECT user_id FROM public.user_roles
             WHERE role_id = :role_id AND tenant_id = :tenant_id
@@ -303,8 +282,6 @@ def _auto_assign_commissioner(app: Application, db: Session) -> None:
 
         commissioner_ids = [row.user_id for row in rows]
 
-        # Gjej atë me assigned_count më të vogël;
-        # nëse janë baras → ai që mori aplikimin e fundit më herët (round-robin i drejtë)
         workloads = db.query(CommissionerWorkload).filter(
             CommissionerWorkload.commissioner_id.in_(commissioner_ids)
         ).order_by(
@@ -316,17 +293,14 @@ def _auto_assign_commissioner(app: Application, db: Session) -> None:
         untracked   = [cid for cid in commissioner_ids if cid not in tracked_ids]
 
         if untracked:
-            # Ka komisioner pa asnjë caktim ende → zgjedh të parin
             chosen_id = untracked[0]
         elif workloads:
             chosen_id = workloads[0].commissioner_id
         else:
             return
 
-        # Cakto komisionerin te aplikimi
         app.assigned_to = chosen_id
 
-        # Përditëso ose krijo workload record
         workload = db.query(CommissionerWorkload).filter(
             CommissionerWorkload.commissioner_id == chosen_id
         ).first()
@@ -340,7 +314,6 @@ def _auto_assign_commissioner(app: Application, db: Session) -> None:
             ))
 
     except Exception as e:
-        # Mos e ndal submit-in nëse auto-assign dështon
         print(f"[auto-assign] dështoi: {e}")
 
 
@@ -355,7 +328,6 @@ def submit_application(application_id: str, user: dict, db: Session) -> Applicat
     app.status = ApplicationStatus.SUBMITTED
     app.submitted_at = datetime.now(timezone.utc)
 
-    # Auto-cakto komisionerin me ngarkesën më të vogël
     _auto_assign_commissioner(app, db)
 
     db.commit()

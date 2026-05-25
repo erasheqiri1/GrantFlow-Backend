@@ -14,7 +14,7 @@ def get_redis() -> redis.Redis:
 
 
 def cache_get(key: str):
-    """Kthe vlerën nga cache ose None nëse nuk ekziston."""
+    """Kthen vleren nga cache ose None nese nuk ekziston."""
     try:
         value = get_redis().get(key)
         return json.loads(value) if value else None
@@ -23,7 +23,7 @@ def cache_get(key: str):
 
 
 def cache_set(key: str, value, ttl: int = 60):
-    """Ruaj vlerën në cache me TTL (sekonda)."""
+    """Ruajn vlerën në cache me TTL."""
     try:
         get_redis().setex(key, ttl, json.dumps(value, default=str))
     except Exception:
@@ -31,7 +31,7 @@ def cache_set(key: str, value, ttl: int = 60):
 
 
 def cache_delete_pattern(pattern: str):
-    """Fshi të gjitha çelësat që përputhen me pattern-in (p.sh. 'grants:public:*')."""
+    """Fshin te gjitha qelesat qe perputhen me pattern."""
     try:
         r = get_redis()
         keys = r.keys(pattern)

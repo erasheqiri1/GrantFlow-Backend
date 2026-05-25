@@ -1,8 +1,4 @@
-"""
-API teste për GrantFlow — testojnë endpoint-et HTTP.
-Përdorin TestClient nga FastAPI (pa nevojë për server të vërtetë).
-DB-ja është e mock-uar — testet punojnë edhe pa PostgreSQL.
-"""
+
 import pytest
 from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient

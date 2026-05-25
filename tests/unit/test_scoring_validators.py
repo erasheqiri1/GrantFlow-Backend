@@ -1,7 +1,4 @@
-"""
-Unit teste për validime dhe logjikë biznesi.
-Teston vlerat kufitare dhe rregullat e sistemit.
-"""
+
 import pytest
 
 
@@ -26,7 +23,7 @@ class TestCommissionerScoreValidation:
 
 
 class TestAIWeightValidation:
-    """Teston rregullën: ai_weight duhet 0.0 - 1.0."""
+    """Teston rregullën qe ai_weight duhet te jete 0.0 - 1.0."""
 
     def test_valid_weights(self):
         valid = [0.0, 0.1, 0.5, 0.6, 1.0]
@@ -44,7 +41,7 @@ class TestAIWeightValidation:
 
 
 class TestCriteriaWeightSum:
-    """Teston rregullën: shuma e peshave të kritereve duhet 100."""
+    """Teston rregullen qe shuma e peshave të kritereve duhet 100."""
 
     def test_valid_sum(self):
         weights = [30, 40, 30]

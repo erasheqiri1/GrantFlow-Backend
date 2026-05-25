@@ -59,7 +59,6 @@ async def upload_org_doc(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    """Ngarko dokumentin e verifikimit për organizatën pas regjistrimit."""
     ALLOWED = {"application/pdf", "image/jpeg", "image/png"}
     MAX_SIZE = 5 * 1024 * 1024  # 5 MB
 
@@ -97,5 +96,5 @@ def verify_email(token: str, db: Session = Depends(get_db)):
 
 @router.post("/invite/accept", response_model=TokenResponse, status_code=201)
 def accept_invite(data: InviteAcceptRequest, db: Session = Depends(get_db)):
-    """Prano ftesën dhe krijo llogarinë."""
+    """Personi i ftuar pranon ftesën dhe krijon llogarinë."""
     return auth_service.accept_invite(data, db)

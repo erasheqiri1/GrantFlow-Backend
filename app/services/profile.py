@@ -99,7 +99,7 @@ def update_my_profile(data: ProfileUpdateRequest, current_user: dict, db: Sessio
             applicant = ApplicantProfile(user_id=user_id)
             db.add(applicant)
 
-        # Nëse po ndryshon kategoria, pastro fushat specifike të kategorisë së vjetër
+        # Nëse po ndryshon kategoria, pastron fushat specifike të kategorisë së vjetër
         TYPE_SPECIFIC_FIELDS = [
             "study_level", "study_status", "study_year", "faculty", "study_program", "university",
             "business_name", "business_type", "activity_field", "num_employees", "founded_year",

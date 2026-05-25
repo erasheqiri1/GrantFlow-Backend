@@ -16,11 +16,6 @@ def log_action(
     details: Optional[dict] = None,
     ip_address: Optional[str] = None,
 ) -> None:
-    """
-    Regjistron një veprim në public.audit_logs.
-    Përdor sesionin e vet të pavarur — nuk ndikon fare transaksionin e biznesit.
-    Nuk ngre exception nëse dështon.
-    """
     from app.core.database import SessionLocal
     db = SessionLocal()
     try:

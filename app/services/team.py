@@ -61,7 +61,6 @@ def send_invite(data: InviteRequest, current_user: dict, db: Session) -> dict:
     log_action(current_user["user_id"], "INVITE_USER", "invitation",
                tenant_id=str(tenant.id), details={"email": data.email, "role": data.role})
 
-    # Celery task — dërgon email me link ftese në background
     invite_link = f"{settings.FRONTEND_URL}/accept-invite?token={invite_token}"
     email_sent = False
     try:
@@ -69,7 +68,6 @@ def send_invite(data: InviteRequest, current_user: dict, db: Session) -> dict:
         send_invitation_email.delay(data.email, invite_link, data.role, tenant.name)
         email_sent = True
     except Exception:
-        # Redis/Celery mund të mos jetë aktiv — ftesa është ruajtur, linku mund të ndahet manualisht
         pass
 
     return {
