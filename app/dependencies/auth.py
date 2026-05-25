@@ -45,40 +45,38 @@ def require_permission(permission_codename: str):
     def checker(
         request: Request,
         credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+        db: Session = Depends(get_tenant_db)
     ):
         role_name = getattr(request.state, "role", None)
         if not role_name:
             raise HTTPException(status_code=401, detail="Jo i autentikuar")
 
-        # Gjithmonë query public schema — Role/Permission janë publike
-        db = SessionLocal()
-        try:
-            role = db.query(Role).filter_by(name=role_name).first()
-            if not role:
-                raise HTTPException(status_code=403, detail="Roli nuk u gjet")
 
-            has_permission = (
-                db.query(RolePermission)
-                .join(Permission)
-                .filter(
-                    RolePermission.role_id == role.id,
-                    Permission.codename == permission_codename
-                )
-                .first()
+        role = db.query(Role).filter_by(name=role_name).first()
+        if not role:
+            raise HTTPException(status_code=403, detail="Roli nuk u gjet")
+
+
+        has_permission = (
+            db.query(RolePermission)
+            .join(Permission)
+            .filter(
+                RolePermission.role_id == role.id,
+                Permission.codename == permission_codename
+            )
+            .first()
+        )
+
+        if not has_permission:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Nuk ke leje: {permission_codename}"
             )
 
-            if not has_permission:
-                raise HTTPException(
-                    status_code=403,
-                    detail=f"Nuk ke leje: {permission_codename}"
-                )
-
-            return {
-                "user_id":     request.state.user_id,
-                "role":        role_name,
-                "tenant_slug": getattr(request.state, "tenant_slug", None),
-            }
-        finally:
-            db.close()
+        return {
+            "user_id":     request.state.user_id,
+            "role":        role_name,
+            "tenant_slug": request.state.tenant_slug,
+        }
 
     return checker

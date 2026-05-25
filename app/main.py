@@ -4,7 +4,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.middleware.auth import AuthMiddleware
 from app.middleware.tenant import TenantMiddleware
-from app.middleware.logging import LoggingMiddleware
 
 from app.routers import auth, profile, tenants, grants, team, users, applications, criteria, audit
 
@@ -32,7 +31,6 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 app.add_middleware(TenantMiddleware)
 app.add_middleware(AuthMiddleware)
-app.add_middleware(LoggingMiddleware)
 
 app.include_router(auth.router)
 app.include_router(profile.router)

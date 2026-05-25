@@ -4,11 +4,16 @@ from sqlalchemy import text
 from typing import List, Optional
 
 from app.core.database import SessionLocal
-from app.dependencies.auth import get_tenant_db, require_permission
+from app.dependencies.auth import get_current_user, get_tenant_db
 from app.schemas.grants import GrantCreate, GrantUpdate, GrantResponse
 from app.services import grants as grant_service
 
 router = APIRouter(prefix="/grants", tags=["Grants"])
+
+
+def _require_org_admin(user: dict):
+    if user["role"] != "ORG_ADMIN":
+        raise HTTPException(status_code=403, detail="Vetëm ORG_ADMIN mund ta kryejë këtë veprim")
 
 
 def get_db_for_slug(tenant_slug: str):
@@ -25,9 +30,10 @@ def get_db_for_slug(tenant_slug: str):
 @router.post("", response_model=GrantResponse, status_code=201)
 def create_grant(
     data: GrantCreate,
-    user=Depends(require_permission("grants:create")),
+    user=Depends(get_current_user),
     db: Session = Depends(get_tenant_db),
 ):
+    _require_org_admin(user)
     return grant_service.create_grant(data, user, db)
 
 
@@ -42,7 +48,7 @@ def get_grants(
     budget_min:     Optional[float] = Query(None, description="Buxheti minimal"),
     budget_max:     Optional[float] = Query(None, description="Buxheti maksimal"),
     sort:           Optional[str] = Query(None, description="created_desc | deadline_asc | deadline_desc | budget_asc | budget_desc | title_asc"),
-    user=Depends(require_permission("grants:read")),
+    user=Depends(get_current_user),
 ):
     slug = getattr(request.state, "tenant_slug", None)
 
@@ -73,7 +79,7 @@ def get_grant(
     request: Request,
     grant_id: str,
     tenant_slug: Optional[str] = None,
-    user=Depends(require_permission("grants:read")),
+    user=Depends(get_current_user),
 ):
     slug = tenant_slug or getattr(request.state, "tenant_slug", None)
     db = SessionLocal()
@@ -106,38 +112,55 @@ def get_grant(
 def update_grant(
     grant_id: str,
     data: GrantUpdate,
-    user=Depends(require_permission("grants:update")),
+    user=Depends(get_current_user),
     db: Session = Depends(get_tenant_db),
 ):
+    _require_org_admin(user)
     return grant_service.update_grant(grant_id, data, db)
 
 
 @router.delete("/{grant_id}", status_code=204)
 def delete_grant(
     grant_id: str,
-    user=Depends(require_permission("grants:delete")),
+    user=Depends(get_current_user),
     db: Session = Depends(get_tenant_db),
 ):
+    _require_org_admin(user)
     grant_service.delete_grant(grant_id, db)
 
 
 @router.patch("/{grant_id}/publish", response_model=GrantResponse)
 def publish_grant(
     grant_id: str,
-    user=Depends(require_permission("grants:publish")),
+    user=Depends(get_current_user),
     db: Session = Depends(get_tenant_db),
 ):
+    _require_org_admin(user)
     return grant_service.publish_grant(grant_id, user, db)
 
 
 @router.patch("/{grant_id}/close", response_model=GrantResponse)
 def close_grant(
     grant_id: str,
-    user=Depends(require_permission("grants:close")),
+    user=Depends(get_current_user),
     db: Session = Depends(get_tenant_db),
 ):
+    _require_org_admin(user)
     return grant_service.close_grant(grant_id, user, db)
 
 
-# Finalizimi është automatik — thirret nga _check_auto_finalize në ai_scoring.py
-# pas deadline + vlerësimit të plotë nga komisionerët.
+@router.post("/{grant_id}/finalize")
+def finalize_grant(
+    grant_id: str,
+    user=Depends(get_current_user),
+    db: Session = Depends(get_tenant_db),
+):
+    """
+    ORG_ADMIN mbyll zgjedhjen:
+    - Rendit aplikimet e dorëzuara/në shqyrtim sipas final_score DESC, submitted_at ASC
+    - Top N (max_applicants) → APPROVED
+    - Të tjerët → REJECTED
+    - Shkruan rank_position
+    """
+    _require_org_admin(user)
+    return grant_service.finalize_grant(grant_id, user, db)

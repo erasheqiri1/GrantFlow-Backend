@@ -6,7 +6,7 @@ from sqlalchemy import text
 from typing import List, Optional
 
 from app.core.database import SessionLocal
-from app.dependencies.auth import get_current_user, get_tenant_db, require_permission
+from app.dependencies.auth import get_current_user, get_tenant_db
 from app.schemas.applications import (
     ApplicationCreate, ApplicationUpdate, ApplicationResponse,
     AttachmentResponse, AIScoreResponse, CommissionerScoreRequest
@@ -35,14 +35,36 @@ ALLOWED_TYPES = {
 router = APIRouter(prefix="/applications", tags=["Applications"])
 
 
+def _require_applicant(user: dict):
+    if user["role"] != "APPLICANT":
+        raise HTTPException(status_code=403, detail="Vetëm APPLICANT mund ta kryejë këtë veprim")
+
+
+def _require_reviewer(user: dict):
+    """ORG_ADMIN dhe COMMISSIONER mund të shohin aplikimet."""
+    if user["role"] not in ("ORG_ADMIN", "COMMISSIONER"):
+        raise HTTPException(status_code=403, detail="Nuk ke leje")
+
+
+def _require_commissioner(user: dict):
+    """Vetëm COMMISSIONER mund të marrë vendime (aprovim/refuzim)."""
+    if user["role"] != "COMMISSIONER":
+        raise HTTPException(status_code=403, detail="Vetëm COMMISSIONER mund të marrë vendime")
+
+
+def _require_org_admin(user: dict):
+    """Vetëm ORG_ADMIN mund të caktojë komisionerë."""
+    if user["role"] != "ORG_ADMIN":
+        raise HTTPException(status_code=403, detail="Vetëm ORG_ADMIN mund të kryejë këtë veprim")
 
 
 @router.post("", response_model=ApplicationResponse, status_code=201)
 def create_application(
     data: ApplicationCreate,
-    user=Depends(require_permission("applications:submit")),
+    user=Depends(get_current_user),
 ):
     """Sistemi vetë e gjen tenant-in nga grant_id — aplikanti nuk duhet të dijë."""
+    _require_applicant(user)
     # hap sesion publik për të gjetur schemën
     db = SessionLocal()
     try:
@@ -56,8 +78,9 @@ def create_application(
 @router.get("/my", response_model=List[ApplicationResponse])
 def get_my_applications(
     request: Request,
-    user=Depends(require_permission("applications:read_own")),
+    user=Depends(get_current_user),
 ):
+    _require_applicant(user)
     pub_db = SessionLocal()
     try:
         # ORG_ADMIN ka tenant_slug në token
@@ -86,8 +109,9 @@ def get_my_applications(
 def update_application(
     application_id: str,
     data: ApplicationUpdate,
-    user=Depends(require_permission("applications:submit")),
+    user=Depends(get_current_user),
 ):
+    _require_applicant(user)
     pub_db = SessionLocal()
     try:
         schema_name = app_service.find_schema_for_application(application_id, pub_db)
@@ -100,8 +124,9 @@ def update_application(
 @router.post("/{application_id}/submit", response_model=ApplicationResponse)
 def submit_application(
     application_id: str,
-    user=Depends(require_permission("applications:submit")),
+    user=Depends(get_current_user),
 ):
+    _require_applicant(user)
     pub_db = SessionLocal()
     try:
         schema_name = app_service.find_schema_for_application(application_id, pub_db)
@@ -116,9 +141,10 @@ def get_all_applications(
     grant_id:    Optional[str] = Query(None, description="Filtro sipas grant ID"),
     status:      Optional[str] = Query(None, description="SUBMITTED | UNDER_REVIEW | APPROVED | REJECTED"),
     assigned_to: Optional[str] = Query(None, description="UUID i komisionerit të caktuar"),
-    user=Depends(require_permission("applications:read_all")),
+    user=Depends(get_current_user),
     db: Session = Depends(get_tenant_db),
 ):
+    _require_reviewer(user)
     return app_service.get_all_applications(db, grant_id, status, assigned_to)
 
 
@@ -143,9 +169,10 @@ def get_application(
 async def upload_attachment(
     application_id: str,
     file: UploadFile = File(...),
-    user=Depends(require_permission("applications:submit")),
+    user=Depends(get_current_user),
 ):
     """Ngarko dokument mbështetës për aplikimin (PDF, JPG, PNG, DOC — max 5 MB)."""
+    _require_applicant(user)
 
     # Kontrollo llojin e skedarit
     if file.content_type not in ALLOWED_TYPES:
@@ -204,18 +231,20 @@ async def upload_attachment(
 def assign_application(
     application_id: str,
     data: AssignRequest,
-    user=Depends(require_permission("users:assign_role")),
+    user=Depends(get_current_user),
     db: Session = Depends(get_tenant_db),
 ):
     """ORG_ADMIN ricakton komisionerin për një aplikim."""
+    _require_org_admin(user)
     return app_service.assign_application(application_id, data.commissioner_id, db)
 
 
 @router.patch("/{application_id}/start-review", response_model=ApplicationResponse)
 def start_review(
     application_id: str,
-    user=Depends(require_permission("applications:read_all")),
+    user=Depends(get_current_user),
 ):
+    _require_commissioner(user)
     pub_db = SessionLocal()
     try:
         schema_name = app_service.find_schema_for_application(application_id, pub_db)
@@ -225,7 +254,35 @@ def start_review(
         pub_db.close()
 
 
-# Aprovimi/refuzimi bëhet automatikisht nga finalize_grant() pas deadline + vlerësimit komisioner.
+@router.patch("/{application_id}/approve", response_model=ApplicationResponse)
+def approve_application(
+    application_id: str,
+    user=Depends(get_current_user),
+):
+    _require_commissioner(user)
+    pub_db = SessionLocal()
+    try:
+        schema_name = app_service.find_schema_for_application(application_id, pub_db)
+        pub_db.execute(text(f'SET search_path TO "{schema_name}", public'))
+        return app_service.approve_application(application_id, user, pub_db)
+    finally:
+        pub_db.close()
+
+
+@router.patch("/{application_id}/reject", response_model=ApplicationResponse)
+def reject_application(
+    application_id: str,
+    data: DecisionRequest = DecisionRequest(),
+    user=Depends(get_current_user),
+):
+    _require_commissioner(user)
+    pub_db = SessionLocal()
+    try:
+        schema_name = app_service.find_schema_for_application(application_id, pub_db)
+        pub_db.execute(text(f'SET search_path TO "{schema_name}", public'))
+        return app_service.reject_application(application_id, data.reason or "", user, pub_db)
+    finally:
+        pub_db.close()
 
 
 @router.get("/{application_id}/attachments", response_model=List[AttachmentResponse])
@@ -250,9 +307,10 @@ def get_attachments(
 @router.post("/{application_id}/score", status_code=202)
 def score_application(
     application_id: str,
-    user=Depends(require_permission("applications:read_all")),
+    user=Depends(get_current_user),
 ):
     """Nis vlerësimin AI në background (Celery). Kthen 202 menjëherë."""
+    _require_reviewer(user)
     pub_db = SessionLocal()
     try:
         schema_name = app_service.find_schema_for_application(application_id, pub_db)
@@ -276,9 +334,10 @@ def score_application(
 @router.get("/{application_id}/score", response_model=AIScoreResponse)
 def get_score(
     application_id: str,
-    user=Depends(require_permission("applications:read_all")),
+    user=Depends(get_current_user),
 ):
     """Merr rezultatin e AI për aplikimin (pollon derisa të jetë gati)."""
+    _require_reviewer(user)
     pub_db = SessionLocal()
     try:
         schema_name = app_service.find_schema_for_application(application_id, pub_db)
@@ -295,9 +354,10 @@ def get_score(
 def submit_commissioner_score(
     application_id: str,
     data: CommissionerScoreRequest,
-    user=Depends(require_permission("applications:read_all")),
+    user=Depends(get_current_user),
 ):
     """Komisioner ose ORG_ADMIN jep pikët (0-100). Rillogarit final_score."""
+    _require_reviewer(user)
     pub_db = SessionLocal()
     try:
         schema_name = app_service.find_schema_for_application(application_id, pub_db)
