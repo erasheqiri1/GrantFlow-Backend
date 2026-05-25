@@ -101,7 +101,7 @@ def get_grants(
 
     grants = query.all()
 
-    # Auto-mbyll grantet PUBLISHED me deadline të kaluar
+    # Auto-mbyll grantet PUBLISHED me deadline të kaluar (FINALIZED nuk preket)
     now = datetime.now(timezone.utc)
     changed = False
     for g in grants:
@@ -114,6 +114,7 @@ def get_grants(
             changed = True
     if changed:
         db.commit()
+
 
     # Kthe dicts me questions: [] — shmanget gabimi i serializimit të ORM
     return [
@@ -355,12 +356,13 @@ def close_grant(grant_id: str, user: dict, db: Session) -> Grant:
 
 def finalize_grant(grant_id: str, user: dict, db: Session) -> dict:
     """
-    Mbyll zgjedhjen e fituesve:
+    Finalizim AUTOMATIK — thirret nga _check_auto_finalize pas çdo vlerësimi komisioner.
     1. Merr të gjitha aplikimet SUBMITTED / UNDER_REVIEW të këtij granti
     2. Rendit: final_score DESC, submitted_at ASC (tiebreaker = kush dërgoi i pari)
     3. Top N (max_applicants) → APPROVED
     4. Të tjerët → REJECTED
     5. Shkruan rank_position tek ai_scores
+    6. Grant → FINALIZED
     """
     grant = get_grant(grant_id, db)
 
@@ -372,8 +374,12 @@ def finalize_grant(grant_id: str, user: dict, db: Session) -> dict:
         grant.status = GrantStatus.CLOSED
         db.flush()
 
-    if grant.status != GrantStatus.CLOSED:
+    if grant.status not in (GrantStatus.CLOSED, GrantStatus.FINALIZED):
         raise HTTPException(status_code=400, detail="Vetëm grantet CLOSED mund të finalizohen")
+
+    # Mos finalizo dy herë
+    if grant.status == GrantStatus.FINALIZED:
+        raise HTTPException(status_code=400, detail="Granti është finalizuar tashmë")
 
     max_n = grant.max_applicants  # None = pa limit
 
@@ -430,6 +436,8 @@ def finalize_grant(grant_id: str, user: dict, db: Session) -> dict:
             )
             db.add(new_score)
 
+    # Vendos statusin FINALIZED
+    grant.status = GrantStatus.FINALIZED
     db.commit()
     log_action(user["user_id"], "FINALIZE_GRANT", "grant", str(grant.id),
                tenant_id=user.get("tenant_id"),

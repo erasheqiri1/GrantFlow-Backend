@@ -243,6 +243,10 @@ def _check_auto_finalize(grant, scored_app, db: Session) -> None:
         deadline_passed = grant.deadline is not None and grant.deadline < now
         is_closed       = grant.status == GrantStatus.CLOSED
 
+        # Mos ritento nëse granti është finalizuar tashmë
+        if grant.status == GrantStatus.FINALIZED:
+            return
+
         if not (deadline_passed or is_closed):
             return  # Deadline nuk ka kaluar ende
 

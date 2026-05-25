@@ -280,9 +280,8 @@ def login_user(data: LoginRequest, db: Session) -> TokenResponse:
 
 def forgot_password(data: ForgotPasswordRequest, db: Session) -> dict:
     user = db.query(User).filter(User.email == data.email).first()
-    # nuk tregojmë nëse ekziston apo jo — security
     if not user:
-        return {"message": "Nëse email ekziston, do të marrësh udhëzime."}
+        raise HTTPException(status_code=404, detail="Ky email nuk ekziston në sistem.")
 
     # fshi token të vjetër nëse ekziston
     db.query(PasswordResetToken).filter(PasswordResetToken.user_id == user.id).delete()
@@ -296,8 +295,12 @@ def forgot_password(data: ForgotPasswordRequest, db: Session) -> dict:
     db.add(reset_token)
     db.commit()
 
-    # TODO: dërgo email me token (Celery task)
-    # send_reset_email.delay(user.email, token)
+    reset_link = f"{settings.FRONTEND_URL}/reset-password?token={token}"
+    try:
+        from app.tasks.email import send_reset_password_email
+        send_reset_password_email.delay(user.email, reset_link)
+    except Exception:
+        pass
 
     return {"message": "Nëse email ekziston, do të marrësh udhëzime."}
 

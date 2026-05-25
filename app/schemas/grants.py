@@ -9,6 +9,7 @@ class GrantStatusEnum(str, Enum):
     DRAFT     = "DRAFT"
     PUBLISHED = "PUBLISHED"
     CLOSED    = "CLOSED"
+    FINALIZED = "FINALIZED"
 
 
 class ApplicantTypeEnum(str, Enum):

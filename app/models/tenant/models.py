@@ -15,6 +15,7 @@ class GrantStatus(str, enum.Enum):
     DRAFT      = "DRAFT"
     PUBLISHED  = "PUBLISHED"
     CLOSED     = "CLOSED"
+    FINALIZED  = "FINALIZED"
 
 
 class ApplicantType(str, enum.Enum):
