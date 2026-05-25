@@ -19,6 +19,8 @@ PERMISSIONS = [
     {"codename": "grants:update",         "resource": "grants",       "action": "update"},
     {"codename": "grants:publish",        "resource": "grants",       "action": "publish"},
     {"codename": "grants:close",          "resource": "grants",       "action": "close"},
+    {"codename": "grants:finalize",       "resource": "grants",       "action": "finalize"},
+    {"codename": "grants:delete",         "resource": "grants",       "action": "delete"},
 
     {"codename": "applications:submit",   "resource": "applications", "action": "submit"},
     {"codename": "applications:read_own", "resource": "applications", "action": "read_own"},
@@ -27,6 +29,11 @@ PERMISSIONS = [
     {"codename": "applications:reject",   "resource": "applications", "action": "reject"},
 
     {"codename": "invitations:send",      "resource": "invitations",  "action": "send"},
+
+    {"codename": "audit:read",            "resource": "audit",        "action": "read"},
+
+    {"codename": "profile:read",          "resource": "profile",      "action": "read"},
+    {"codename": "profile:update",        "resource": "profile",      "action": "update"},
 ]
 
 ROLE_PERMISSIONS = {
@@ -36,7 +43,11 @@ ROLE_PERMISSIONS = {
         "tenants:read",
         "tenants:deactivate",
         "users:read",
+        "users:deactivate",
         "users:assign_role",
+        "audit:read",
+        "profile:read",
+        "profile:update",
     ],
 
     RoleName.ORG_ADMIN: [
@@ -45,11 +56,15 @@ ROLE_PERMISSIONS = {
         "grants:update",
         "grants:publish",
         "grants:close",
+        "grants:finalize",
+        "grants:delete",
         "applications:read_all",
         "users:assign_role",
         "users:deactivate",
         "users:read",
         "invitations:send",
+        "profile:read",
+        "profile:update",
     ],
 
     RoleName.COMMISSIONER: [
@@ -57,12 +72,16 @@ ROLE_PERMISSIONS = {
         "applications:read_all",
         "applications:approve",
         "applications:reject",
+        "profile:read",
+        "profile:update",
     ],
 
     RoleName.APPLICANT: [
         "grants:read",
         "applications:submit",
         "applications:read_own",
+        "profile:read",
+        "profile:update",
     ],
 }
 
