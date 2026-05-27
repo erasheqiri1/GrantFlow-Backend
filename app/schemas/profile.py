@@ -20,7 +20,6 @@ class ProfileResponse(BaseModel):
     applicant_type: Optional[ApplicantType] = None
     has_prev_grant: Optional[bool] = None
     description: Optional[str] = None
-    personal_id: Optional[str] = None
 
     # STUDENT
     university: Optional[str] = None
@@ -73,7 +72,6 @@ class ProfileUpdateRequest(BaseModel):
     applicant_type: Optional[ApplicantType] = None
     has_prev_grant: Optional[bool] = None
     description: Optional[str] = None
-    personal_id: Optional[str] = None
 
     # STUDENT
     study_level: Optional[str] = None

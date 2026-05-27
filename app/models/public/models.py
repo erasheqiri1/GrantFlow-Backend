@@ -98,7 +98,6 @@ class ApplicantProfile(Base):
     applicant_type     = Column(SAEnum(ApplicantType), nullable=True)
     has_prev_grant      = Column(Boolean, nullable=True)
     description         = Column(Text, nullable=True)
-    personal_id         = Column(String(20), nullable=True)   # numri personal (16-shifror)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc), nullable=False)
