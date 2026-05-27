@@ -94,6 +94,7 @@ class ApplicantProfile(Base):
     id                  = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id             = Column(UUID(as_uuid=True), ForeignKey("public.users.id",
                                  ondelete="CASCADE"), unique=True, nullable=False)
+    personal_id         = Column(String(20),  nullable=True)
     applicant_type     = Column(SAEnum(ApplicantType), nullable=True)
     has_prev_grant      = Column(Boolean, nullable=True)
     description         = Column(Text, nullable=True)

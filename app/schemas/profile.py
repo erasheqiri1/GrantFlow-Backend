@@ -16,6 +16,7 @@ class ProfileResponse(BaseModel):
     tenant_slug: Optional[str] = None
 
     # ApplicantProfile
+    personal_id: Optional[str] = None
     applicant_type: Optional[ApplicantType] = None
     has_prev_grant: Optional[bool] = None
     description: Optional[str] = None
@@ -67,6 +68,7 @@ class ProfileUpdateRequest(BaseModel):
     profile_picture: Optional[str] = None
 
     # applicant_profiles
+    personal_id: Optional[str] = None
     applicant_type: Optional[ApplicantType] = None
     has_prev_grant: Optional[bool] = None
     description: Optional[str] = None
