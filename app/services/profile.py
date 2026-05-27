@@ -44,7 +44,6 @@ def get_my_profile(current_user: dict, db: Session) -> ProfileResponse:
         applicant_type=ap.applicant_type if ap else None,
         has_prev_grant=ap.has_prev_grant if ap else None,
         description=ap.description if ap else None,
-        personal_id=ap.personal_id if ap else None,
         university=ap.university if ap else None,
         faculty=ap.faculty if ap else None,
         study_program=ap.study_program if ap else None,
