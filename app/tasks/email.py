@@ -6,10 +6,11 @@ from app.core.celery_app import celery_app
 from app.core.config import settings
 
 
-def _send_smtp(to: str, subject: str, html: str) -> None:
+def _send_smtp(to: str, subject: str, html: str, from_name: str = "") -> None:
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"]    = settings.MAIL_FROM or settings.MAIL_USERNAME
+    sender_email   = settings.MAIL_FROM or settings.MAIL_USERNAME
+    msg["From"]    = f'"{from_name} via GrantFlow" <{sender_email}>' if from_name else sender_email
     msg["To"]      = to
     msg.attach(MIMEText(html, "html"))
     with smtplib.SMTP(settings.MAIL_SERVER, settings.MAIL_PORT) as server:
@@ -93,7 +94,7 @@ def send_invitation_email(self, to: str, invite_link: str, role: str, org_name: 
 
 
 @celery_app.task(name="send_application_result_email", bind=True, max_retries=3)
-def send_application_result_email(self, to: str, full_name: str, grant_title: str, approved: bool, reason: str = "") -> dict:
+def send_application_result_email(self, to: str, full_name: str, grant_title: str, approved: bool, reason: str = "", org_name: str = "") -> dict:
     try:
         if approved:
             color   = "#22c55e"
@@ -125,7 +126,7 @@ def send_application_result_email(self, to: str, full_name: str, grant_title: st
         """
 
         subject = f"GrantFlow — {'Aplikimi u aprovua' if approved else 'Aplikimi nuk u aprovua'}: {grant_title}"
-        _send_smtp(to, subject, html)
+        _send_smtp(to, subject, html, from_name=org_name)
         return {"status": "sent", "to": to}
     except Exception as exc:
         raise self.retry(exc=exc, countdown=60)
