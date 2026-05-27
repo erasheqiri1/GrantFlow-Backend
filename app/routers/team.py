@@ -19,7 +19,7 @@ def invite_member(
 
 @router.get("/team", response_model=list[TeamMemberResponse])
 def get_team(
-    current_user: dict = Depends(require_permission("users:read")),
+    current_user: dict = Depends(require_permission("team:read")),
     db: Session = Depends(get_tenant_db),
 ):
     return team_service.get_team(current_user, db)
@@ -28,7 +28,7 @@ def get_team(
 @router.delete("/team/{member_id}", status_code=204)
 def remove_member(
     member_id: str,
-    current_user: dict = Depends(require_permission("users:deactivate")),
+    current_user: dict = Depends(require_permission("team:manage")),
     db: Session = Depends(get_tenant_db),
 ):
     team_service.remove_member(member_id, current_user, db)

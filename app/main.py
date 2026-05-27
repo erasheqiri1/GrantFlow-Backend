@@ -6,7 +6,7 @@ from app.middleware.auth import AuthMiddleware
 from app.middleware.tenant import TenantMiddleware
 from app.middleware.logging import LoggingMiddleware
 
-from app.routers import auth, profile, tenants, grants, team, users, applications, criteria, audit
+from app.routers import auth, profile, tenants, grants, team, users, applications, criteria, audit, permissions
 
 # Sigurohemi që direktoria uploads ekziston
 os.makedirs("uploads/attachments", exist_ok=True)
@@ -45,6 +45,7 @@ app.include_router(team.router)
 app.include_router(applications.router)
 app.include_router(criteria.router)
 app.include_router(audit.router)
+app.include_router(permissions.router)
 
 
 @app.get("/", tags=["Health"])
