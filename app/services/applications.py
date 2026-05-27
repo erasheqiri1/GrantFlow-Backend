@@ -81,6 +81,8 @@ def create_application(data: ApplicationCreate, user: dict, db: Session) -> Appl
     ).first()
     if not applicant_profile or not applicant_profile.applicant_type:
         raise HTTPException(status_code=400, detail="PROFILE_INCOMPLETE")
+    if not applicant_profile.personal_id:
+        raise HTTPException(status_code=400, detail="PROFILE_MISSING_PERSONAL_ID")
 
     if grant.applicant_type.value != "ANY":
         if applicant_profile.applicant_type.value != grant.applicant_type.value:

@@ -115,6 +115,31 @@ def get_grants(
     if changed:
         db.commit()
 
+    # Auto-finalize: grantet CLOSED + krejt aplikimet të vlerësuara nga komisioneri
+    for g in grants:
+        if g.status != GrantStatus.CLOSED:
+            continue
+        try:
+            active_apps = db.query(Application).filter(
+                Application.grant_id == g.id,
+                Application.status.in_([ApplicationStatus.SUBMITTED, ApplicationStatus.UNDER_REVIEW])
+            ).all()
+            if not active_apps:
+                continue
+            all_scored = all(
+                db.query(AIScore).filter(
+                    AIScore.application_id == a.id,
+                    AIScore.commissioner_score.isnot(None)
+                ).first() is not None
+                for a in active_apps
+            )
+            if all_scored:
+                finalize_grant(str(g.id), {"user_id": str(active_apps[0].user_id), "tenant_id": None}, db)
+                print(f"[auto-finalize] Grant '{g.title}' u finalizua.")
+        except Exception as e:
+            print(f"[auto-finalize] {g.id}: {e}")
+            db.rollback()
+
 
     # Kthe dicts me questions: [] — shmanget gabimi i serializimit të ORM
     return [
@@ -439,20 +464,25 @@ def finalize_grant(grant_id: str, user: dict, db: Session) -> dict:
     try:
         from app.tasks.email import send_application_result_email
         from sqlalchemy import text as _text
-        for app, score_row, final in scored:
+
+        for app_obj, score_row, final in scored:
             row = db.execute(
                 _text("SELECT email, first_name, last_name FROM public.users WHERE id = :uid"),
-                {"uid": str(app.user_id)}
+                {"uid": str(app_obj.user_id)}
             ).fetchone()
-            if row:
-                full_name = f"{row.first_name} {row.last_name}".strip() or row.email
-                approved  = app.status.value == "APPROVED"
-                reason    = app.decision_reason or ""
+            if not row:
+                continue
+            full_name   = f"{row.first_name} {row.last_name}".strip() or row.email
+            is_approved = app_obj.status == ApplicationStatus.APPROVED
+            reason      = app_obj.decision_reason or ""
+            try:
                 send_application_result_email.delay(
-                    row.email, full_name, grant.title, approved, reason
+                    row.email, full_name, grant.title, is_approved, reason
                 )
-    except Exception:
-        pass
+            except Exception as email_err:
+                print(f"[finalize] Email dështoi për {row.email}: {email_err}")
+    except Exception as e:
+        print(f"[finalize] Email dërgimi dështoi: {e}")
 
     return {
         "status":   "finalized",
