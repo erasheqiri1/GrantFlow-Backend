@@ -465,12 +465,6 @@ def finalize_grant(grant_id: str, user: dict, db: Session) -> dict:
         from app.tasks.email import send_application_result_email
         from sqlalchemy import text as _text
 
-        # Merr emrin e organizatës për From header të emailit
-        org_name = ""
-        if user.get("tenant_id"):
-            t = db.query(Tenant).filter(Tenant.id == user["tenant_id"]).first()
-            org_name = t.name if t else ""
-
         for app_obj, score_row, final in scored:
             row = db.execute(
                 _text("SELECT email, first_name, last_name FROM public.users WHERE id = :uid"),
@@ -478,13 +472,12 @@ def finalize_grant(grant_id: str, user: dict, db: Session) -> dict:
             ).fetchone()
             if not row:
                 continue
-            full_name    = f"{row.first_name} {row.last_name}".strip() or row.email
-            is_approved  = app_obj.status == ApplicationStatus.APPROVED
-            reason       = app_obj.decision_reason or ""
+            full_name   = f"{row.first_name} {row.last_name}".strip() or row.email
+            is_approved = app_obj.status == ApplicationStatus.APPROVED
+            reason      = app_obj.decision_reason or ""
             try:
-                # Dërgim direkt (sinkron) — garanton email pa nevojë për Celery worker
-                send_application_result_email(
-                    row.email, full_name, grant.title, is_approved, reason, org_name
+                send_application_result_email.delay(
+                    row.email, full_name, grant.title, is_approved, reason
                 )
             except Exception as email_err:
                 print(f"[finalize] Email dështoi për {row.email}: {email_err}")

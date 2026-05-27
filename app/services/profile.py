@@ -6,7 +6,7 @@ from app.models.public.models import User, UserProfile, ApplicantProfile
 from app.schemas.profile import ProfileResponse, ProfileUpdateRequest
 
 APPLICANT_FIELDS = [
-    "applicant_type", "has_prev_grant", "description",
+    "applicant_type", "has_prev_grant", "description", "personal_id",
     "study_level", "study_status", "study_year", "faculty", "study_program", "university",
     "business_name", "business_type", "activity_field", "num_employees", "founded_year",
     "org_name", "org_type", "org_field", "num_staff", "org_founded_year", "reg_number",
@@ -42,6 +42,7 @@ def get_my_profile(current_user: dict, db: Session) -> ProfileResponse:
         applicant_type=ap.applicant_type if ap else None,
         has_prev_grant=ap.has_prev_grant if ap else None,
         description=ap.description if ap else None,
+        personal_id=ap.personal_id if ap else None,
         university=ap.university if ap else None,
         faculty=ap.faculty if ap else None,
         study_program=ap.study_program if ap else None,
