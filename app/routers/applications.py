@@ -1,6 +1,7 @@
 import os
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request, Query, UploadFile, File
+from app.core.file_validation import validate_magic_bytes
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional
@@ -261,6 +262,9 @@ async def upload_attachment(
             status_code=413,
             detail="Skedari është shumë i madh. Maksimumi është 5 MB."
         )
+
+    # Kontrollo magic bytes — parandalon fshehjen e skedarëve të rrezikshëm
+    validate_magic_bytes(contents, file.content_type)
 
     # Ruaj skedarin në disk me emër unik
     os.makedirs(UPLOAD_DIR, exist_ok=True)

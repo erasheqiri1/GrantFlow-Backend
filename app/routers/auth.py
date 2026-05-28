@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.file_validation import validate_magic_bytes
 from app.core.redis_client import blacklist_token, rate_limit_check
 from app.models.public.models import Tenant
 from app.schemas.auth import (
@@ -103,6 +104,9 @@ async def upload_org_doc(
     contents = await file.read()
     if len(contents) > MAX_SIZE:
         raise HTTPException(status_code=413, detail="Skedari është shumë i madh (max 5 MB)")
+
+    # Kontrollo magic bytes — parandalon fshehjen e skedarëve të rrezikshëm
+    validate_magic_bytes(contents, file.content_type)
 
     tenant = db.query(Tenant).filter(Tenant.slug == org_slug).first()
     if not tenant:
