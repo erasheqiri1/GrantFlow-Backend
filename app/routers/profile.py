@@ -9,7 +9,22 @@ from app.services import profile as profile_service
 router = APIRouter(prefix="/profile", tags=["Profile"])
 
 
-@router.get("/me", response_model=ProfileResponse)
+@router.get(
+    "/me",
+    response_model=ProfileResponse,
+    summary="Profili im",
+    description="""
+Kthen profilin e plotë të userit të kyçur.
+
+**Kërkon:** Çdo user i autentikuar.
+
+Përfshin: emrin, emailin, rolin, foton e profilit dhe të dhëna shtesë sipas rolit.
+""",
+    responses={
+        200: {"description": "Detajet e profilit"},
+        401: {"description": "Token mungon ose i pavlefshëm"},
+    },
+)
 def get_profile(
     current_user: dict = Depends(require_permission("profile:read")),
     db: Session = Depends(get_db),
@@ -17,7 +32,23 @@ def get_profile(
     return profile_service.get_my_profile(current_user, db)
 
 
-@router.patch("/me", response_model=ProfileResponse)
+@router.patch(
+    "/me",
+    response_model=ProfileResponse,
+    summary="Përditëso profilin tim",
+    description="""
+Përditëson të dhënat e profilit të userit të kyçur.
+
+**Kërkon:** Çdo user i autentikuar.
+
+Fushat që mund të ndryshohen: emri, mbiemri, numri i telefonit, biografia, foto profili.
+""",
+    responses={
+        200: {"description": "Profil i përditësuar"},
+        401: {"description": "Token mungon ose i pavlefshëm"},
+        422: {"description": "Të dhëna të gabuara"},
+    },
+)
 def update_profile(
     data: ProfileUpdateRequest,
     current_user: dict = Depends(require_permission("profile:update")),

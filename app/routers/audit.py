@@ -11,7 +11,24 @@ from app.services import audit as audit_service
 router = APIRouter(prefix="/audit-logs", tags=["Audit"])
 
 
-@router.get("")
+@router.get(
+    "",
+    summary="Audit logs të platformës",
+    description="""
+Kthen listën e paginuar të log-eve të veprimeve në platformë.
+
+**Kërkon rolin:** `SUPER_ADMIN`
+
+Regjistron çdo veprim të rëndësishëm: krijim granti, aprovim organizate, largim anëtari etj.
+
+**Filtrime:** action, tenant_id, periudhë kohore
+""",
+    responses={
+        200: {"description": "Listë e paginuar e audit log-eve"},
+        401: {"description": "Token mungon ose i pavlefshëm"},
+        403: {"description": "Nuk ke leje — kërkohet SUPER_ADMIN"},
+    },
+)
 def get_audit_logs(
     action:    Optional[str]      = Query(None, description="p.sh. CREATE_GRANT, INVITE_USER"),
     tenant_id: Optional[str]      = Query(None, description="UUID i tenant-it"),

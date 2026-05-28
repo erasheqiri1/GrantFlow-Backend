@@ -2,6 +2,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    ENV: str = "development"
     DATABASE_URL: str
     SECRET_KEY: str
     REDIS_URL: str = "redis://localhost:6379/0"
