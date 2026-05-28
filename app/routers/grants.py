@@ -22,7 +22,25 @@ def get_db_for_slug(tenant_slug: str):
         db.close()
 
 
-@router.post("", response_model=GrantResponse, status_code=201)
+@router.post(
+    "",
+    response_model=GrantResponse,
+    status_code=201,
+    summary="Krijo grant të ri",
+    description="""
+Krijon një grant të ri me statusin **DRAFT**.
+
+**Kërkon rolin:** `ORG_ADMIN`
+
+Granti fillon si DRAFT dhe duhet publikuar manualisht me `PATCH /{grant_id}/publish`.
+""",
+    responses={
+        201: {"description": "Grant i krijuar me sukses (status: DRAFT)"},
+        401: {"description": "Token mungon ose i pavlefshëm"},
+        403: {"description": "Nuk ke leje — kërkohet ORG_ADMIN"},
+        422: {"description": "Të dhëna të gabuara (fushat e detyrueshme mungojnë)"},
+    },
+)
 def create_grant(
     data: GrantCreate,
     user=Depends(require_permission("grants:create")),
@@ -31,7 +49,25 @@ def create_grant(
     return grant_service.create_grant(data, user, db)
 
 
-@router.get("", response_model=PaginatedGrantResponse)
+@router.get(
+    "",
+    response_model=PaginatedGrantResponse,
+    summary="Merr listën e granteve",
+    description="""
+Kthen listën e paginuar të granteve.
+
+**Sjellja sipas rolit:**
+- `ORG_ADMIN` / `COMMISSIONER` → sheh grantet e organizatës (të gjitha statuset)
+- `APPLICANT` → sheh vetëm grantet **PUBLISHED** nga të gjitha organizatat
+
+**Filtrime të disponueshme:** status, titull, lloj aplikanti, deadline, buxhet
+""",
+    responses={
+        200: {"description": "Listë e paginuar e granteve"},
+        401: {"description": "Token mungon ose i pavlefshëm"},
+        403: {"description": "Nuk ke leje"},
+    },
+)
 def get_grants(
     request: Request,
     status:         Optional[str]   = Query(None, description="DRAFT | PUBLISHED | CLOSED"),
@@ -71,7 +107,24 @@ def get_grants(
         db.close()
 
 
-@router.get("/{grant_id}", response_model=GrantResponse)
+@router.get(
+    "/{grant_id}",
+    response_model=GrantResponse,
+    summary="Detajet e një granti",
+    description="""
+Kthen të gjitha detajet e një granti sipas ID-së.
+
+**Kërkon rolin:** Çdo user i autentikuar.
+
+Sistemi gjen automatikisht organizatën nga `grant_id` — aplikanti nuk duhet të dijë tenant-in.
+""",
+    responses={
+        200: {"description": "Detajet e grantit"},
+        401: {"description": "Token mungon ose i pavlefshëm"},
+        404: {"description": "Granti nuk u gjet"},
+        422: {"description": "grant_id i pavlefshëm (jo UUID)"},
+    },
+)
 def get_grant(
     request: Request,
     grant_id: str,
@@ -105,7 +158,25 @@ def get_grant(
         db.close()
 
 
-@router.patch("/{grant_id}", response_model=GrantResponse)
+@router.patch(
+    "/{grant_id}",
+    response_model=GrantResponse,
+    summary="Përditëso grant",
+    description="""
+Përditëson fushat e një granti ekzistues.
+
+**Kërkon rolin:** `ORG_ADMIN`
+
+Vetëm grantet me status **DRAFT** mund të modifikohen.
+""",
+    responses={
+        200: {"description": "Grant i përditësuar"},
+        401: {"description": "Token mungon ose i pavlefshëm"},
+        403: {"description": "Nuk ke leje — kërkohet ORG_ADMIN"},
+        404: {"description": "Granti nuk u gjet"},
+        422: {"description": "Të dhëna të gabuara"},
+    },
+)
 def update_grant(
     grant_id: str,
     data: GrantUpdate,
@@ -115,7 +186,24 @@ def update_grant(
     return grant_service.update_grant(grant_id, data, db)
 
 
-@router.delete("/{grant_id}", status_code=204)
+@router.delete(
+    "/{grant_id}",
+    status_code=204,
+    summary="Fshi grant",
+    description="""
+Fshin një grant nga sistemi.
+
+**Kërkon rolin:** `ORG_ADMIN`
+
+⚠️ Vetëm grantet me status **DRAFT** mund të fshihen.
+""",
+    responses={
+        204: {"description": "Grant i fshirë me sukses"},
+        401: {"description": "Token mungon ose i pavlefshëm"},
+        403: {"description": "Nuk ke leje — kërkohet ORG_ADMIN"},
+        404: {"description": "Granti nuk u gjet"},
+    },
+)
 def delete_grant(
     grant_id: str,
     user=Depends(require_permission("grants:delete")),
@@ -124,7 +212,24 @@ def delete_grant(
     grant_service.delete_grant(grant_id, db)
 
 
-@router.patch("/{grant_id}/publish", response_model=GrantResponse)
+@router.patch(
+    "/{grant_id}/publish",
+    response_model=GrantResponse,
+    summary="Publiko grant",
+    description="""
+Ndryshon statusin e grantit nga **DRAFT** në **PUBLISHED**.
+
+**Kërkon rolin:** `ORG_ADMIN`
+
+Pas publikimit, granti bëhet i dukshëm për të gjithë aplikantët.
+""",
+    responses={
+        200: {"description": "Grant i publikuar me sukses"},
+        401: {"description": "Token mungon ose i pavlefshëm"},
+        403: {"description": "Nuk ke leje — kërkohet ORG_ADMIN"},
+        404: {"description": "Granti nuk u gjet"},
+    },
+)
 def publish_grant(
     grant_id: str,
     user=Depends(require_permission("grants:publish")),
@@ -133,7 +238,24 @@ def publish_grant(
     return grant_service.publish_grant(grant_id, user, db)
 
 
-@router.patch("/{grant_id}/close", response_model=GrantResponse)
+@router.patch(
+    "/{grant_id}/close",
+    response_model=GrantResponse,
+    summary="Mbyll grant",
+    description="""
+Mbyll një grant të publikuar — nuk pranohen më aplikime.
+
+**Kërkon rolin:** `ORG_ADMIN`
+
+Pas mbylljes, nis procesi i vlerësimit të aplikimeve.
+""",
+    responses={
+        200: {"description": "Grant i mbyllur me sukses"},
+        401: {"description": "Token mungon ose i pavlefshëm"},
+        403: {"description": "Nuk ke leje — kërkohet ORG_ADMIN"},
+        404: {"description": "Granti nuk u gjet"},
+    },
+)
 def close_grant(
     grant_id: str,
     user=Depends(require_permission("grants:close")),

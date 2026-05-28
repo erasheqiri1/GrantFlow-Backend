@@ -38,7 +38,28 @@ router = APIRouter(prefix="/applications", tags=["Applications"])
 
 
 
-@router.post("", response_model=ApplicationResponse, status_code=201)
+@router.post(
+    "",
+    response_model=ApplicationResponse,
+    status_code=201,
+    summary="Krijo aplikim për grant",
+    description="""
+Krijon një aplikim të ri me statusin **DRAFT**.
+
+**Kërkon rolin:** `APPLICANT`
+
+Sistemi gjen automatikisht organizatën nga `grant_id` — aplikanti nuk duhet të dijë tenant-in.
+
+Pas krijimit, aplikimi duhet dorëzuar me `POST /{application_id}/submit`.
+""",
+    responses={
+        201: {"description": "Aplikim i krijuar (status: DRAFT)"},
+        401: {"description": "Token mungon ose i pavlefshëm"},
+        403: {"description": "Nuk ke leje — kërkohet APPLICANT"},
+        404: {"description": "Granti nuk u gjet"},
+        409: {"description": "Ke aplikuar tashmë për këtë grant"},
+    },
+)
 def create_application(
     data: ApplicationCreate,
     user=Depends(require_permission("applications:submit")),
@@ -54,7 +75,23 @@ def create_application(
         db.close()
 
 
-@router.get("/my", response_model=PaginatedApplicationResponse)
+@router.get(
+    "/my",
+    response_model=PaginatedApplicationResponse,
+    summary="Aplikimet e mia",
+    description="""
+Kthen listën e paginuar të aplikimeve të userit të kyçur.
+
+**Kërkon rolin:** `APPLICANT`
+
+Shfaq aplikimet nga të gjitha organizatat ku ka aplikuar useri.
+""",
+    responses={
+        200: {"description": "Listë e paginuar e aplikimeve"},
+        401: {"description": "Token mungon ose i pavlefshëm"},
+        403: {"description": "Nuk ke leje — kërkohet APPLICANT"},
+    },
+)
 def get_my_applications(
     request: Request,
     status:  Optional[str] = Query(None, description="DRAFT | SUBMITTED | UNDER_REVIEW | APPROVED | REJECTED"),
@@ -105,7 +142,24 @@ def update_application(
         pub_db.close()
 
 
-@router.post("/{application_id}/submit", response_model=ApplicationResponse)
+@router.post(
+    "/{application_id}/submit",
+    response_model=ApplicationResponse,
+    summary="Dorëzo aplikimin",
+    description="""
+Ndryshon statusin e aplikimit nga **DRAFT** në **SUBMITTED**.
+
+**Kërkon rolin:** `APPLICANT`
+
+Pas dorëzimit, aplikimi nuk mund të modifikohet më.
+""",
+    responses={
+        200: {"description": "Aplikim i dorëzuar (status: SUBMITTED)"},
+        401: {"description": "Token mungon ose i pavlefshëm"},
+        403: {"description": "Nuk ke leje ose aplikimi nuk është i juaji"},
+        404: {"description": "Aplikimi nuk u gjet"},
+    },
+)
 def submit_application(
     application_id: str,
     user=Depends(require_permission("applications:submit")),
@@ -119,7 +173,23 @@ def submit_application(
         pub_db.close()
 
 
-@router.get("", response_model=PaginatedApplicationResponse)
+@router.get(
+    "",
+    response_model=PaginatedApplicationResponse,
+    summary="Të gjitha aplikimet (ORG)",
+    description="""
+Kthen listën e paginuar të aplikimeve për organizatën aktuale.
+
+**Kërkon rolin:** `ORG_ADMIN` ose `COMMISSIONER`
+
+Mund të filtrohet sipas grant-it, statusit dhe komisionerit të caktuar.
+""",
+    responses={
+        200: {"description": "Listë e paginuar e aplikimeve"},
+        401: {"description": "Token mungon ose i pavlefshëm"},
+        403: {"description": "Nuk ke leje — kërkohet ORG_ADMIN ose COMMISSIONER"},
+    },
+)
 def get_all_applications(
     grant_id:    Optional[str] = Query(None, description="Filtro sipas grant ID"),
     status:      Optional[str] = Query(None, description="SUBMITTED | UNDER_REVIEW | APPROVED | REJECTED"),
@@ -134,7 +204,25 @@ def get_all_applications(
     return app_service.get_all_applications(db, grant_id, status, assigned_to, sortBy, sortDir, page, size)
 
 
-@router.get("/{application_id}", response_model=ApplicationResponse)
+@router.get(
+    "/{application_id}",
+    response_model=ApplicationResponse,
+    summary="Detajet e një aplikimi",
+    description="""
+Kthen detajet e plotë të një aplikimi.
+
+**Kërkon:** User i autentikuar.
+
+- `APPLICANT` → sheh vetëm aplikimet e tij
+- `ORG_ADMIN` / `COMMISSIONER` → sheh të gjitha aplikimet e organizatës
+""",
+    responses={
+        200: {"description": "Detajet e aplikimit"},
+        401: {"description": "Token mungon ose i pavlefshëm"},
+        403: {"description": "Nuk ke leje — aplikimi i takon dikujt tjetër"},
+        404: {"description": "Aplikimi nuk u gjet"},
+    },
+)
 def get_application(
     application_id: str,
     user=Depends(get_current_user),
