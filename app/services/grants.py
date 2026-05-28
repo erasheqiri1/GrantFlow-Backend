@@ -73,7 +73,10 @@ def get_grants(
     if status:
         query = query.filter(Grant.status == status)
     if title:
-        query = query.filter(Grant.title.ilike(f"%{title}%"))
+        _sv  = func.to_tsvector('simple',
+            func.coalesce(Grant.title, '') + ' ' + func.coalesce(Grant.description, ''))
+        _tsq = func.plainto_tsquery('simple', title)
+        query = query.filter(_sv.op('@@')(_tsq))
     if applicant_type:
         query = query.filter(Grant.applicant_type == applicant_type)
     start_date = _parse_filter_date(deadline_from)
@@ -89,15 +92,24 @@ def get_grants(
     if budget_max is not None:
         query = query.filter(amount <= budget_max)
 
-    asc_fn = lambda col: col.asc() if sort_dir == "asc" else col.desc()
-    if sort_by == "deadline":
-        query = query.order_by(asc_fn(Grant.deadline).nullslast(), Grant.created_at.desc())
-    elif sort_by == "budget":
-        query = query.order_by(asc_fn(amount), Grant.created_at.desc())
-    elif sort_by == "title":
-        query = query.order_by(asc_fn(Grant.title), Grant.created_at.desc())
+    if title:
+        # Kur ka kërkim → rendit sipas relevancës
+        _rank = func.ts_rank(
+            func.to_tsvector('simple',
+                func.coalesce(Grant.title, '') + ' ' + func.coalesce(Grant.description, '')),
+            func.plainto_tsquery('simple', title)
+        )
+        query = query.order_by(_rank.desc(), Grant.created_at.desc())
     else:
-        query = query.order_by(asc_fn(Grant.created_at))
+        asc_fn = lambda col: col.asc() if sort_dir == "asc" else col.desc()
+        if sort_by == "deadline":
+            query = query.order_by(asc_fn(Grant.deadline).nullslast(), Grant.created_at.desc())
+        elif sort_by == "budget":
+            query = query.order_by(asc_fn(amount), Grant.created_at.desc())
+        elif sort_by == "title":
+            query = query.order_by(asc_fn(Grant.title), Grant.created_at.desc())
+        else:
+            query = query.order_by(asc_fn(Grant.created_at))
 
     total = query.count()
     offset = (page - 1) * size
@@ -200,21 +212,42 @@ def get_all_published_grants(
     for tenant in tenants:
         schema_name = f"tenant_{tenant.slug.replace('-', '_')}"
         try:
-            rows = db.execute(text(f"""
-                SELECT id, title, description, budget, currency, grant_value,
-                       deadline, max_applicants, status, applicant_type,
-                       ai_weight, created_at, updated_at
-                FROM "{schema_name}".grants
-                WHERE status = 'PUBLISHED'
-                ORDER BY created_at DESC
-            """)).fetchall()
+            if title:
+                rows = db.execute(text(f"""
+                    SELECT id, title, description, budget, currency, grant_value,
+                           deadline, max_applicants, status, applicant_type,
+                           ai_weight, created_at, updated_at,
+                           ts_rank(
+                               to_tsvector('simple',
+                                   coalesce(title,'') || ' ' ||
+                                   coalesce(description,'') || ' ' ||
+                                   :org_name
+                               ),
+                               plainto_tsquery('simple', :search)
+                           ) AS rank
+                    FROM "{schema_name}".grants
+                    WHERE status = 'PUBLISHED'
+                      AND to_tsvector('simple',
+                              coalesce(title,'') || ' ' ||
+                              coalesce(description,'') || ' ' ||
+                              :org_name
+                          ) @@ plainto_tsquery('simple', :search)
+                """), {"search": title, "org_name": tenant.name}).fetchall()
+            else:
+                rows = db.execute(text(f"""
+                    SELECT id, title, description, budget, currency, grant_value,
+                           deadline, max_applicants, status, applicant_type,
+                           ai_weight, created_at, updated_at,
+                           0 AS rank
+                    FROM "{schema_name}".grants
+                    WHERE status = 'PUBLISHED'
+                    ORDER BY created_at DESC
+                """)).fetchall()
         except Exception:
             db.rollback()
             continue
 
         for row in rows:
-            if title and title.lower() not in (row.title or "").lower():
-                continue
             if applicant_type and row.applicant_type != applicant_type:
                 continue
             if start_date and (not row.deadline or row.deadline < start_date):
@@ -243,10 +276,14 @@ def get_all_published_grants(
                 "tenant_slug":    tenant.slug,
                 "org_name":       tenant.name,
                 "questions":      [],
+                "_rank":          float(row.rank),
             })
 
     reverse = sort_dir == "desc"
-    if sort_by == "deadline":
+    if title:
+        # Kur ka kërkim → rendit sipas relevancës (rank më i lartë = match më i mirë)
+        all_grants.sort(key=lambda g: g["_rank"], reverse=True)
+    elif sort_by == "deadline":
         all_grants.sort(
             key=lambda g: (g["deadline"] is None, g["deadline"] or datetime.min.replace(tzinfo=timezone.utc)),
             reverse=reverse,
@@ -260,6 +297,10 @@ def get_all_published_grants(
         all_grants.sort(key=lambda g: (g["title"] or "").lower(), reverse=reverse)
     else:
         all_grants.sort(key=lambda g: g["created_at"] or datetime.min.replace(tzinfo=timezone.utc), reverse=reverse)
+
+    # Hiq fushën interne _rank para cache/return
+    for g in all_grants:
+        g.pop("_rank", None)
 
     cache_set(cache_key, all_grants, ttl=60)
     print(f"[CACHE SET]  {cache_key} — {len(all_grants)} grants u ruajtën (TTL 60s)")
