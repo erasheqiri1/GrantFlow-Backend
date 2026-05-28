@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from app.middleware.auth import AuthMiddleware
 from app.middleware.tenant import TenantMiddleware
 from app.middleware.logging import LoggingMiddleware
+from app.core.config import settings
 
 from app.routers import auth, profile, tenants, grants, team, users, applications, criteria, audit, permissions, payments
 
@@ -86,7 +87,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[settings.FRONTEND_URL],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
