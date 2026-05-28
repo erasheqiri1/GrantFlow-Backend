@@ -26,11 +26,15 @@ def platform_stats(
 
 @router.get("", response_model=TenantListResponse, summary="Lista e të gjitha organizatave")
 def list_tenants(
-    status: Optional[str] = Query(None, description="PENDING | ACTIVE | REJECTED"),
+    status:  Optional[str] = Query(None, description="PENDING | ACTIVE | REJECTED"),
+    sortBy:  str = Query("created_at", description="created_at | name"),
+    sortDir: str = Query("desc",       description="asc | desc"),
+    page:    int = Query(1,  ge=1),
+    size:    int = Query(20, ge=1, le=200),
     db: Session = Depends(get_db),
     _: dict = Depends(require_permission("tenants:read")),
 ):
-    return tenant_service.get_tenants(db, status)
+    return tenant_service.get_tenants(db, status, sortBy, sortDir, page, size)
 
 
 @router.patch("/{tenant_id}/approve", summary="Aprovo organizatën")

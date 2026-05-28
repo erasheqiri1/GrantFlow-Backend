@@ -5,7 +5,7 @@ from typing import List, Optional
 
 from app.core.database import SessionLocal
 from app.dependencies.auth import get_tenant_db, require_permission
-from app.schemas.grants import GrantCreate, GrantUpdate, GrantResponse
+from app.schemas.grants import GrantCreate, GrantUpdate, GrantResponse, PaginatedGrantResponse
 from app.services import grants as grant_service
 
 router = APIRouter(prefix="/grants", tags=["Grants"])
@@ -31,17 +31,20 @@ def create_grant(
     return grant_service.create_grant(data, user, db)
 
 
-@router.get("", response_model=List[GrantResponse])
+@router.get("", response_model=PaginatedGrantResponse)
 def get_grants(
     request: Request,
-    status:         Optional[str] = Query(None, description="DRAFT | PUBLISHED | CLOSED"),
-    title:          Optional[str] = Query(None, description="Kërko me fjalë kyçe në titull"),
-    applicant_type: Optional[str] = Query(None, description="ANY | STUDENT | BUSINESS | ORGANIZATION | INDIVIDUAL"),
-    deadline_from:  Optional[str] = Query(None, description="Grante me afat nga (YYYY-MM-DD) — tregon grante që skadojnë në ose pas kësaj date"),
-    deadline_to:    Optional[str] = Query(None, description="Grante me afat deri (YYYY-MM-DD)"),
+    status:         Optional[str]   = Query(None, description="DRAFT | PUBLISHED | CLOSED"),
+    title:          Optional[str]   = Query(None, description="Kërko me fjalë kyçe në titull"),
+    applicant_type: Optional[str]   = Query(None, description="ANY | STUDENT | BUSINESS | ORGANIZATION | INDIVIDUAL"),
+    deadline_from:  Optional[str]   = Query(None, description="Grante me afat nga (YYYY-MM-DD)"),
+    deadline_to:    Optional[str]   = Query(None, description="Grante me afat deri (YYYY-MM-DD)"),
     budget_min:     Optional[float] = Query(None, description="Buxheti minimal"),
     budget_max:     Optional[float] = Query(None, description="Buxheti maksimal"),
-    sort:           Optional[str] = Query(None, description="created_desc | deadline_asc | deadline_desc | budget_asc | budget_desc | title_asc"),
+    sortBy:         str = Query("created_at", description="created_at | deadline | budget | title"),
+    sortDir:        str = Query("desc",       description="asc | desc"),
+    page:           int = Query(1,  ge=1),
+    size:           int = Query(10, ge=1, le=500),
     user=Depends(require_permission("grants:read")),
 ):
     slug = getattr(request.state, "tenant_slug", None)
@@ -51,7 +54,7 @@ def get_grants(
         try:
             return grant_service.get_all_published_grants(
                 db, title, applicant_type, deadline_from, deadline_to,
-                budget_min, budget_max, sort,
+                budget_min, budget_max, sortBy, sortDir, page, size,
             )
         finally:
             db.close()
@@ -62,7 +65,7 @@ def get_grants(
         db.execute(text(f'SET search_path TO "{schema_name}", public'))
         return grant_service.get_grants(
             db, status, title, applicant_type, deadline_from, deadline_to,
-            budget_min, budget_max, sort,
+            budget_min, budget_max, sortBy, sortDir, page, size,
         )
     finally:
         db.close()

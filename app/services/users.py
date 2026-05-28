@@ -41,8 +41,23 @@ def _get_tenant(user: User, db: Session) -> Optional[Tenant]:
     return db.query(Tenant).filter(Tenant.id == user_role.tenant_id).first()
 
 
-def get_users(db: Session) -> dict:
-    users = db.query(User).order_by(User.created_at.desc()).all()
+def get_users(
+    db: Session,
+    sort_by: str = "created_at",
+    sort_dir: str = "desc",
+    page: int = 1,
+    size: int = 20,
+) -> dict:
+    col_map = {
+        "created_at": User.created_at,
+        "email":      User.email,
+        "first_name": User.first_name,
+        "last_name":  User.last_name,
+    }
+    col = col_map.get(sort_by, User.created_at)
+    order = col.desc() if sort_dir == "desc" else col.asc()
+    total = db.query(User).count()
+    users = db.query(User).order_by(order).offset((page - 1) * size).limit(size).all()
     items = []
     for user in users:
         row = db.execute(
@@ -66,7 +81,7 @@ def get_users(db: Session) -> dict:
             "created_at": user.created_at,
             "tenant_status": row[0] if row else None,
         })
-    return {"total": len(items), "items": items}
+    return {"total": total, "page": page, "size": size, "items": items}
 
 
 def toggle_user_active(db: Session, user_id: str, requester_id: str) -> dict:

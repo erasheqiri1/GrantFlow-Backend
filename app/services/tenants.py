@@ -9,7 +9,14 @@ from app.models.public.models import Tenant, TenantStatus, User, UserRole, Role,
 from app.services.audit import log_action
 
 
-def get_tenants(db: Session, status: Optional[str] = None) -> dict:
+def get_tenants(
+    db: Session,
+    status: Optional[str] = None,
+    sort_by: str = "created_at",
+    sort_dir: str = "desc",
+    page: int = 1,
+    size: int = 20,
+) -> dict:
     query = db.query(Tenant)
     if status:
         try:
@@ -20,8 +27,12 @@ def get_tenants(db: Session, status: Optional[str] = None) -> dict:
                 detail=f"Status i pavlefshëm: '{status}'. Vlerat e lejuara: PENDING, ACTIVE, REJECTED",
             )
         query = query.filter(Tenant.status == status_enum)
-    tenants = query.order_by(Tenant.created_at.desc()).all()
-    return {"total": len(tenants), "items": tenants}
+    col_map = {"created_at": Tenant.created_at, "name": Tenant.name}
+    col = col_map.get(sort_by, Tenant.created_at)
+    order = col.desc() if sort_dir == "desc" else col.asc()
+    total = query.count()
+    tenants = query.order_by(order).offset((page - 1) * size).limit(size).all()
+    return {"total": total, "page": page, "size": size, "items": tenants}
 
 
 def approve_tenant(db: Session, tenant_id: str, user_id: str) -> dict:
@@ -111,14 +122,14 @@ def get_platform_stats(db: Session) -> dict:
             ).scalar() or 0
             total_grants += g
         except Exception:
-            pass
+            db.rollback()
         try:
             a = db.execute(
                 text(f'SELECT COUNT(*) FROM "{schema}".applications'),
             ).scalar() or 0
             total_applications += a
         except Exception:
-            pass
+            db.rollback()
     return {
         "total_grants":       total_grants,
         "total_applications": total_applications,

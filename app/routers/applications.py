@@ -9,7 +9,8 @@ from app.core.database import SessionLocal
 from app.dependencies.auth import get_current_user, get_tenant_db, require_permission
 from app.schemas.applications import (
     ApplicationCreate, ApplicationUpdate, ApplicationResponse,
-    AttachmentResponse, AIScoreResponse, CommissionerScoreRequest
+    AttachmentResponse, AIScoreResponse, CommissionerScoreRequest,
+    PaginatedApplicationResponse,
 )
 from app.services import ai_scoring
 from pydantic import BaseModel
@@ -53,31 +54,34 @@ def create_application(
         db.close()
 
 
-@router.get("/my", response_model=List[ApplicationResponse])
+@router.get("/my", response_model=PaginatedApplicationResponse)
 def get_my_applications(
     request: Request,
+    sortBy:  str = Query("created_at", description="created_at | submitted_at | status"),
+    sortDir: str = Query("desc",       description="asc | desc"),
+    page:    int = Query(1,    ge=1),
+    size:    int = Query(1000, ge=1, le=2000),
     user=Depends(require_permission("applications:read_own")),
 ):
     pub_db = SessionLocal()
     try:
-        # ORG_ADMIN ka tenant_slug në token
         slug = getattr(request.state, "tenant_slug", None)
         if slug:
             schema_name = f"tenant_{slug.replace('-', '_')}"
             pub_db.execute(text(f'SET search_path TO "{schema_name}", public'))
-            return app_service.get_my_applications(user, pub_db)
+            return app_service.get_my_applications(user, pub_db, sortBy, sortDir, page, size)
 
-        # Aplikanti — kërko në të gjitha schemat
         schemas = app_service.find_schemas_for_user(user["user_id"], pub_db)
         all_apps = []
         for schema_name in schemas:
             db2 = SessionLocal()
             try:
                 db2.execute(text(f'SET search_path TO "{schema_name}", public'))
-                all_apps.extend(app_service.get_my_applications(user, db2))
+                result = app_service.get_my_applications(user, db2, sortBy, sortDir, 1, 2000)
+                all_apps.extend(result["items"])
             finally:
                 db2.close()
-        return all_apps
+        return {"total": len(all_apps), "page": page, "size": size, "items": all_apps}
     finally:
         pub_db.close()
 
@@ -111,15 +115,19 @@ def submit_application(
         pub_db.close()
 
 
-@router.get("", response_model=List[ApplicationResponse])
+@router.get("", response_model=PaginatedApplicationResponse)
 def get_all_applications(
     grant_id:    Optional[str] = Query(None, description="Filtro sipas grant ID"),
     status:      Optional[str] = Query(None, description="SUBMITTED | UNDER_REVIEW | APPROVED | REJECTED"),
     assigned_to: Optional[str] = Query(None, description="UUID i komisionerit të caktuar"),
+    sortBy:      str = Query("created_at", description="created_at | submitted_at | status"),
+    sortDir:     str = Query("desc",       description="asc | desc"),
+    page:        int = Query(1,  ge=1),
+    size:        int = Query(10, ge=1, le=500),
     user=Depends(require_permission("applications:read_all")),
     db: Session = Depends(get_tenant_db),
 ):
-    return app_service.get_all_applications(db, grant_id, status, assigned_to)
+    return app_service.get_all_applications(db, grant_id, status, assigned_to, sortBy, sortDir, page, size)
 
 
 @router.get("/{application_id}", response_model=ApplicationResponse)

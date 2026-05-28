@@ -17,8 +17,10 @@ def get_audit_logs(
     tenant_id: Optional[str]      = Query(None, description="UUID i tenant-it"),
     from_date: Optional[datetime] = Query(None, description="Nga data (ISO 8601)"),
     to_date:   Optional[datetime] = Query(None, description="Deri ne date (ISO 8601)"),
-    limit:     int                = Query(100, ge=1, le=500),
-    offset:    int                = Query(0,   ge=0),
+    sortBy:    str                = Query("created_at", description="created_at | action | user_email"),
+    sortDir:   str                = Query("desc",       description="asc | desc"),
+    page:      int                = Query(1,  ge=1),
+    size:      int                = Query(20, ge=1, le=200),
     db: Session = Depends(get_db),
     _: dict     = Depends(require_permission("audit:read")),
 ):
@@ -28,6 +30,8 @@ def get_audit_logs(
         tenant_id=tenant_id,
         from_date=from_date,
         to_date=to_date,
-        limit=limit,
-        offset=offset,
+        sort_by=sortBy,
+        sort_dir=sortDir,
+        page=page,
+        size=size,
     )

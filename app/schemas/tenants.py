@@ -24,4 +24,6 @@ class TenantResponse(BaseModel):
 
 class TenantListResponse(BaseModel):
     total: int
+    page:  int
+    size:  int
     items: List[TenantResponse]

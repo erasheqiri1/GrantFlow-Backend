@@ -184,13 +184,27 @@ def _enrich(app: Application, db: Session) -> None:
     _enrich_with_user_info(app, db)
 
 
-def get_my_applications(user: dict, db: Session) -> list:
-    apps = db.query(Application).filter(
-        Application.user_id == uuid.UUID(user["user_id"])
-    ).order_by(Application.created_at.desc()).all()
+def get_my_applications(
+    user: dict,
+    db: Session,
+    sort_by: str = "created_at",
+    sort_dir: str = "desc",
+    page: int = 1,
+    size: int = 1000,
+) -> dict:
+    col_map = {
+        "created_at":   Application.created_at,
+        "submitted_at": Application.submitted_at,
+        "status":       Application.status,
+    }
+    col = col_map.get(sort_by, Application.created_at)
+    order = col.desc() if sort_dir == "desc" else col.asc()
+    query = db.query(Application).filter(Application.user_id == uuid.UUID(user["user_id"]))
+    total = query.count()
+    apps = query.order_by(order).offset((page - 1) * size).limit(size).all()
     for app in apps:
         _enrich(app, db)
-    return apps
+    return {"total": total, "page": page, "size": size, "items": apps}
 
 
 def get_application(application_id: str, db: Session) -> Application:
@@ -344,7 +358,11 @@ def get_all_applications(
     grant_id: str = None,
     status: str = None,
     assigned_to: str = None,
-) -> list:
+    sort_by: str = "created_at",
+    sort_dir: str = "desc",
+    page: int = 1,
+    size: int = 10,
+) -> dict:
     query = db.query(Application).filter(
         Application.status != ApplicationStatus.DRAFT
     )
@@ -362,10 +380,18 @@ def get_all_applications(
             query = query.filter(Application.assigned_to == uuid.UUID(assigned_to))
         except ValueError:
             pass
-    apps = query.order_by(Application.created_at.desc()).all()
+    col_map = {
+        "created_at":   Application.created_at,
+        "submitted_at": Application.submitted_at,
+        "status":       Application.status,
+    }
+    col = col_map.get(sort_by, Application.created_at)
+    order = col.desc() if sort_dir == "desc" else col.asc()
+    total = query.count()
+    apps = query.order_by(order).offset((page - 1) * size).limit(size).all()
     for app in apps:
         _enrich(app, db)
-    return apps
+    return {"total": total, "page": page, "size": size, "items": apps}
 
 
 def assign_application(application_id: str, commissioner_id: str, db: Session) -> Application:

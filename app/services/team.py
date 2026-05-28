@@ -77,22 +77,39 @@ def send_invite(data: InviteRequest, current_user: dict, db: Session) -> dict:
     }
 
 
-def get_team(current_user: dict, db: Session) -> list[TeamMemberResponse]:
+def get_team(
+    current_user: dict,
+    db: Session,
+    sort_by: str = "email",
+    sort_dir: str = "asc",
+    page: int = 1,
+    size: int = 50,
+) -> dict:
     tenant_slug = current_user["tenant_slug"]
     if not tenant_slug:
         raise HTTPException(status_code=403, detail="Nuk je pjese e nje organizate")
 
     tenant = _get_tenant(tenant_slug, db)
 
-    rows = (
+    col_map = {
+        "email":      User.email,
+        "first_name": User.first_name,
+        "last_name":  User.last_name,
+        "role":       Role.name,
+    }
+    col = col_map.get(sort_by, User.email)
+    order = col.asc() if sort_dir == "asc" else col.desc()
+
+    query = (
         db.query(User, Role)
         .join(UserRole, UserRole.user_id == User.id)
         .join(Role, Role.id == UserRole.role_id)
         .filter(UserRole.tenant_id == tenant.id)
-        .all()
     )
+    total = query.count()
+    rows = query.order_by(order).offset((page - 1) * size).limit(size).all()
 
-    return [
+    items = [
         TeamMemberResponse(
             id=user.id,
             email=user.email,
@@ -102,6 +119,7 @@ def get_team(current_user: dict, db: Session) -> list[TeamMemberResponse]:
         )
         for user, role in rows
     ]
+    return {"total": total, "page": page, "size": size, "items": items}
 
 
 def remove_member(member_id: str, current_user: dict, db: Session) -> None:

@@ -64,8 +64,11 @@ def get_grants(
     deadline_to: str = None,
     budget_min: float = None,
     budget_max: float = None,
-    sort: str = None,
-) -> list:
+    sort_by: str = "created_at",
+    sort_dir: str = "desc",
+    page: int = 1,
+    size: int = 10,
+) -> dict:
     query = db.query(Grant)
     if status:
         query = query.filter(Grant.status == status)
@@ -86,20 +89,19 @@ def get_grants(
     if budget_max is not None:
         query = query.filter(amount <= budget_max)
 
-    if sort == "deadline_asc":
-        query = query.order_by(Grant.deadline.asc().nullslast(), Grant.created_at.desc())
-    elif sort == "deadline_desc":
-        query = query.order_by(Grant.deadline.desc().nullslast(), Grant.created_at.desc())
-    elif sort == "budget_asc":
-        query = query.order_by(amount.asc(), Grant.created_at.desc())
-    elif sort == "budget_desc":
-        query = query.order_by(amount.desc(), Grant.created_at.desc())
-    elif sort == "title_asc":
-        query = query.order_by(Grant.title.asc(), Grant.created_at.desc())
+    asc_fn = lambda col: col.asc() if sort_dir == "asc" else col.desc()
+    if sort_by == "deadline":
+        query = query.order_by(asc_fn(Grant.deadline).nullslast(), Grant.created_at.desc())
+    elif sort_by == "budget":
+        query = query.order_by(asc_fn(amount), Grant.created_at.desc())
+    elif sort_by == "title":
+        query = query.order_by(asc_fn(Grant.title), Grant.created_at.desc())
     else:
-        query = query.order_by(Grant.created_at.desc())
+        query = query.order_by(asc_fn(Grant.created_at))
 
-    grants = query.all()
+    total = query.count()
+    offset = (page - 1) * size
+    grants = query.offset(offset).limit(size).all()
 
     # Auto-mbyll grantet PUBLISHED me deadline të kaluar (FINALIZED nuk preket)
     now = datetime.now(timezone.utc)
@@ -141,8 +143,7 @@ def get_grants(
             db.rollback()
 
 
-    # Kthe dicts me questions: [] — shmanget gabimi i serializimit të ORM
-    return [
+    items = [
         {
             "id":             g.id,
             "title":          g.title,
@@ -160,6 +161,7 @@ def get_grants(
         }
         for g in grants
     ]
+    return {"total": total, "page": page, "size": size, "items": items}
 
 
 def get_all_published_grants(
@@ -170,19 +172,24 @@ def get_all_published_grants(
     deadline_to: str = None,
     budget_min: float = None,
     budget_max: float = None,
-    sort: str = None,
-) -> list:
+    sort_by: str = "created_at",
+    sort_dir: str = "desc",
+    page: int = 1,
+    size: int = 10,
+) -> dict:
 
     from app.core.redis_client import cache_get, cache_set
 
     cache_key = (
         f"grants:public:{title or ''}:{applicant_type or ''}:{deadline_from or ''}:"
-        f"{deadline_to or ''}:{budget_min or ''}:{budget_max or ''}:{sort or ''}"
+        f"{deadline_to or ''}:{budget_min or ''}:{budget_max or ''}:{sort_by}:{sort_dir}"
     )
     cached = cache_get(cache_key)
     if cached is not None:
         print(f"[CACHE HIT]  {cache_key} — {len(cached)} grants nga Redis")
-        return cached
+        total = len(cached)
+        offset = (page - 1) * size
+        return {"total": total, "page": page, "size": size, "items": cached[offset:offset + size]}
     print(f"[CACHE MISS] {cache_key} — kërkon nga DB")
 
     tenants = db.query(Tenant).filter(Tenant.status == TenantStatus.ACTIVE).all()
@@ -238,20 +245,28 @@ def get_all_published_grants(
                 "questions":      [],
             })
 
-    if sort == "deadline_asc":
-        all_grants.sort(key=lambda g: (g["deadline"] is None, g["deadline"] or datetime.max.replace(tzinfo=timezone.utc)))
-    elif sort == "deadline_desc":
-        all_grants.sort(key=lambda g: (g["deadline"] is None, g["deadline"] or datetime.min.replace(tzinfo=timezone.utc)), reverse=True)
-    elif sort == "budget_asc":
-        all_grants.sort(key=lambda g: _grant_amount(g["grant_value"] if g["grant_value"] is not None else g["budget"]))
-    elif sort == "budget_desc":
-        all_grants.sort(key=lambda g: _grant_amount(g["grant_value"] if g["grant_value"] is not None else g["budget"]), reverse=True)
-    elif sort == "title_asc":
-        all_grants.sort(key=lambda g: (g["title"] or "").lower())
+    reverse = sort_dir == "desc"
+    if sort_by == "deadline":
+        all_grants.sort(
+            key=lambda g: (g["deadline"] is None, g["deadline"] or datetime.min.replace(tzinfo=timezone.utc)),
+            reverse=reverse,
+        )
+    elif sort_by == "budget":
+        all_grants.sort(
+            key=lambda g: _grant_amount(g["grant_value"] if g["grant_value"] is not None else g["budget"]),
+            reverse=reverse,
+        )
+    elif sort_by == "title":
+        all_grants.sort(key=lambda g: (g["title"] or "").lower(), reverse=reverse)
+    else:
+        all_grants.sort(key=lambda g: g["created_at"] or datetime.min.replace(tzinfo=timezone.utc), reverse=reverse)
 
     cache_set(cache_key, all_grants, ttl=60)
     print(f"[CACHE SET]  {cache_key} — {len(all_grants)} grants u ruajtën (TTL 60s)")
-    return all_grants
+
+    total = len(all_grants)
+    offset = (page - 1) * size
+    return {"total": total, "page": page, "size": size, "items": all_grants[offset:offset + size]}
 
 
 def get_grant_detail(grant_id: str, db: Session) -> dict:

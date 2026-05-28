@@ -1,5 +1,5 @@
 ﻿from pydantic import BaseModel, EmailStr
-from typing import Literal
+from typing import Literal, List
 from uuid import UUID
 
 
@@ -17,3 +17,10 @@ class TeamMemberResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class PaginatedTeamResponse(BaseModel):
+    total: int
+    page:  int
+    size:  int
+    items: List[TeamMemberResponse]

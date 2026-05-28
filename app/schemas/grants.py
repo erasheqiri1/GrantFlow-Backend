@@ -82,3 +82,10 @@ class GrantResponse(BaseModel):
     criteria:       List[CriteriaInGrant]  = []
 
     model_config = {"from_attributes": True}
+
+
+class PaginatedGrantResponse(BaseModel):
+    total: int
+    page:  int
+    size:  int
+    items: List[GrantResponse]

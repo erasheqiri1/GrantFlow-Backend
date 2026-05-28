@@ -54,11 +54,13 @@ def get_audit_logs(
     tenant_id: Optional[str] = None,
     from_date: Optional[datetime] = None,
     to_date: Optional[datetime] = None,
-    limit: int = 100,
-    offset: int = 0,
-) -> list:
+    sort_by: str = "created_at",
+    sort_dir: str = "desc",
+    page: int = 1,
+    size: int = 20,
+) -> dict:
     filters = ["1=1"]
-    params: dict = {"limit": limit, "offset": offset}
+    params: dict = {"limit": size, "offset": (page - 1) * size}
 
     if action:
         filters.append("action = :action")
@@ -78,6 +80,15 @@ def get_audit_logs(
 
     where = " AND ".join(filters)
 
+    allowed_cols = {"created_at": "al.created_at", "action": "al.action", "user_email": "u.email"}
+    order_col = allowed_cols.get(sort_by, "al.created_at")
+    order_dir = "ASC" if sort_dir == "asc" else "DESC"
+
+    total = db.execute(
+        text(f"SELECT COUNT(*) FROM public.audit_logs al WHERE {where}"),
+        {k: v for k, v in params.items() if k not in ("limit", "offset")},
+    ).scalar() or 0
+
     rows = db.execute(
         text(f"""
             SELECT
@@ -90,13 +101,13 @@ def get_audit_logs(
             LEFT JOIN public.users   u ON u.id = al.user_id
             LEFT JOIN public.tenants t ON t.id = al.tenant_id
             WHERE {where}
-            ORDER BY al.created_at DESC
+            ORDER BY {order_col} {order_dir}
             LIMIT :limit OFFSET :offset
         """),
         params,
     ).fetchall()
 
-    return [
+    items = [
         {
             "id":          str(row.id),
             "action":      row.action,
@@ -111,3 +122,4 @@ def get_audit_logs(
         }
         for row in rows
     ]
+    return {"total": total, "page": page, "size": size, "items": items}

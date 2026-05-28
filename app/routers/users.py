@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
@@ -22,8 +22,15 @@ class InviteSuperAdminRequest(BaseModel):
 
 
 @router.get("", response_model=UserListResponse)
-def list_users(db: Session = Depends(get_db), _: dict = Depends(require_permission("users:read"))):
-    return users_service.get_users(db)
+def list_users(
+    sortBy:  str = Query("created_at", description="created_at | email | first_name | last_name"),
+    sortDir: str = Query("desc",       description="asc | desc"),
+    page:    int = Query(1,  ge=1),
+    size:    int = Query(20, ge=1, le=500),
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permission("users:read")),
+):
+    return users_service.get_users(db, sortBy, sortDir, page, size)
 
 
 @router.post("/super-admin")

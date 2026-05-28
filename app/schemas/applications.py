@@ -78,6 +78,13 @@ class ApplicationResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
+class PaginatedApplicationResponse(BaseModel):
+    total: int
+    page:  int
+    size:  int
+    items: List[ApplicationResponse]
+
+
 class AIScoreResponse(BaseModel):
     id:                 UUID
     application_id:     UUID
