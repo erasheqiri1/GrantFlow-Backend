@@ -89,6 +89,10 @@ def score_application(application_id: str, db: Session) -> AIScore:
     ai_score_val  = 0.0
     justification = ""
 
+    ai_score_val  = None
+    justification = ""
+    ai_available  = False
+
     if client is not None:
         try:
             prompt   = _build_prompt(app, grant, criteria, answers, doc_texts or None)
@@ -119,18 +123,24 @@ def score_application(application_id: str, db: Session) -> AIScore:
             # Nëse AI jep < 15 për gibberish, e rregullojmë në 0
             if ai_score_val < 15:
                 ai_score_val = 0.0
-        except Exception as e:
-            # Fallback nëse thirrja dështon
-            ai_score_val, justification = _heuristic_score(app, answers, criteria)
-            model_name = "heuristic-fallback"
+            ai_available = True
+        except Exception:
+            # AI dështoi — shëno si i padisponueshëm, mos përdor heuristik
+            model_name    = "unavailable"
+            justification = "Shërbimi AI ishte i padisponueshëm gjatë vlerësimit."
     else:
-        ai_score_val, justification = _heuristic_score(app, answers, criteria)
-        model_name = "heuristic-fallback"
+        # Nuk ka API key të konfiguruar
+        model_name    = "unavailable"
+        justification = "Shërbimi AI nuk është konfiguruar."
 
-    # Llogarit final_score
+    # Llogarit final_score vetëm nëse AI ka dhënë score real
     ai_weight        = float(grant.ai_weight) if grant and grant.ai_weight else 0.6
     commissioner_val = float(existing.commissioner_score) if existing and existing.commissioner_score is not None else 0.0
-    final_score      = round(ai_score_val * ai_weight + commissioner_val * (1 - ai_weight), 2)
+
+    if ai_available and ai_score_val is not None:
+        final_score = round(ai_score_val * ai_weight + commissioner_val * (1 - ai_weight), 2)
+    else:
+        final_score = None  # nuk llogaritet pa AI score real
 
     # Ruan ose perditeson
     now = datetime.now(timezone.utc)
@@ -170,6 +180,14 @@ def set_commissioner_score(application_id: str, commissioner_score: float, db: S
         raise HTTPException(status_code=422, detail="Pikët duhet të jenë 0-100")
 
     score_row = db.query(AIScore).filter(AIScore.application_id == aid).first()
+
+    # Blloko nëse AI scoring nuk është kompletuar
+    if not score_row or score_row.ai_score is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Vlerësimi AI nuk është kompletuar për këtë aplikim. "
+                   "Provo sërish kur shërbimi AI të jetë aktiv ose kontakto administratorin."
+        )
 
     # Gjej ai_weight nga granti
     app = db.query(Application).filter(Application.id == aid).first()

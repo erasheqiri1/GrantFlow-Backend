@@ -54,7 +54,7 @@ def find_schema_for_grant(grant_id: uuid.UUID, db: Session) -> str:
         try:
             row = db.execute(text(f"""
                 SELECT id FROM "{schema_name}".grants
-                WHERE id = :gid AND status::text IN ('PUBLISHED', 'CLOSED')
+                WHERE id = :gid AND status::text IN ('PUBLISHED', 'CLOSED', 'FINALIZED')
             """), {"gid": str(grant_id)}).fetchone()
             if row:
                 return schema_name
