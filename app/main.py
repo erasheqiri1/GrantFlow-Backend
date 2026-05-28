@@ -10,7 +10,7 @@ from app.middleware.tenant import TenantMiddleware
 from app.middleware.logging import LoggingMiddleware
 from app.core.config import settings
 
-from app.routers import auth, profile, tenants, grants, team, users, applications, criteria, audit, permissions, payments
+from app.routers import auth, profile, tenants, grants, team, users, applications, criteria, audit, permissions, payments, chatbot
 
 logger = logging.getLogger("grantflow")
 
@@ -112,6 +112,7 @@ app.include_router(criteria.router)
 app.include_router(audit.router)
 app.include_router(permissions.router)
 app.include_router(payments.router)
+app.include_router(chatbot.router)
 
 
 @app.get("/", tags=["Health"])
