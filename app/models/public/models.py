@@ -82,6 +82,7 @@ class UserProfile(Base):
     phone           = Column(String(50),  nullable=True)
     profile_picture = Column(String(500), nullable=True)
     address         = Column(String(300), nullable=True)
+    iban            = Column(String(34),  nullable=True)
     created_at      = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at      = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
                              onupdate=lambda: datetime.now(timezone.utc), nullable=False)

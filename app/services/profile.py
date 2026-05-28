@@ -37,6 +37,7 @@ def get_my_profile(current_user: dict, db: Session) -> ProfileResponse:
         phone=profile.phone if profile else None,
         profile_picture=profile.profile_picture if profile else None,
         address=profile.address if profile else None,
+        iban=profile.iban if profile else None,
         role=current_user["role"],
         tenant_slug=current_user["tenant_slug"],
         # ApplicantProfile
@@ -92,6 +93,8 @@ def update_my_profile(data: ProfileUpdateRequest, current_user: dict, db: Sessio
         profile.phone = data.phone
     if data.address is not None:
         profile.address = data.address
+    if data.iban is not None:
+        profile.iban = data.iban.strip().upper() or None
     if data.profile_picture is not None:
         profile.profile_picture = data.profile_picture
 

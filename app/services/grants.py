@@ -512,6 +512,22 @@ def finalize_grant(grant_id: str, user: dict, db: Session) -> dict:
 
     # Vendos statusin FINALIZED
     grant.status = GrantStatus.FINALIZED
+    db.flush()
+
+    # Krijo Payment automatikisht për çdo aplikim APPROVED
+    try:
+        from app.services.payments import create_payment_for_application
+        for app_obj, score_row, final in scored:
+            if app_obj.status == ApplicationStatus.APPROVED:
+                create_payment_for_application(
+                    application_id=app_obj.id,
+                    amount=grant.grant_value or grant.budget,
+                    currency=grant.currency or "EUR",
+                    db=db,
+                )
+    except Exception as e:
+        print(f"[finalize] Payment krijimi dështoi: {e}")
+
     db.commit()
     log_action(user["user_id"], "FINALIZE_GRANT", "grant", str(grant.id),
                tenant_id=user.get("tenant_id"),

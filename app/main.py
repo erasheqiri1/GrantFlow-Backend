@@ -9,7 +9,7 @@ from app.middleware.auth import AuthMiddleware
 from app.middleware.tenant import TenantMiddleware
 from app.middleware.logging import LoggingMiddleware
 
-from app.routers import auth, profile, tenants, grants, team, users, applications, criteria, audit, permissions
+from app.routers import auth, profile, tenants, grants, team, users, applications, criteria, audit, permissions, payments
 
 logger = logging.getLogger("grantflow")
 
@@ -110,6 +110,7 @@ app.include_router(applications.router)
 app.include_router(criteria.router)
 app.include_router(audit.router)
 app.include_router(permissions.router)
+app.include_router(payments.router)
 
 
 @app.get("/", tags=["Health"])

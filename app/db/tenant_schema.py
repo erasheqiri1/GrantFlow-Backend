@@ -191,6 +191,22 @@ CREATE TABLE IF NOT EXISTS "{schema}".application_status_updates (
     changed_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- 17. payments
+CREATE TABLE IF NOT EXISTS "{schema}".payments (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    application_id UUID NOT NULL REFERENCES "{schema}".applications(id) ON DELETE CASCADE,
+    amount         NUMERIC(12, 2),
+    currency       VARCHAR(10) NOT NULL DEFAULT 'EUR',
+    status         VARCHAR(20) NOT NULL DEFAULT 'PENDING'
+                   CHECK (status IN ('PENDING', 'PAID')),
+    reference      VARCHAR(200),
+    paid_at        TIMESTAMPTZ,
+    paid_by        UUID REFERENCES public.users(id),
+    note           VARCHAR(500),
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_payment_application UNIQUE (application_id)
+);
+
 """
 
 

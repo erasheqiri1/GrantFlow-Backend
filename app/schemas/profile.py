@@ -12,6 +12,7 @@ class ProfileResponse(BaseModel):
     phone: Optional[str] = None
     profile_picture: Optional[str] = None
     address: Optional[str] = None
+    iban: Optional[str] = None
     role: str
     tenant_slug: Optional[str] = None
 
@@ -65,6 +66,7 @@ class ProfileUpdateRequest(BaseModel):
     last_name: Optional[str] = None
     phone: Optional[str] = None
     address: Optional[str] = None
+    iban: Optional[str] = None
     profile_picture: Optional[str] = None
 
     # applicant_profiles

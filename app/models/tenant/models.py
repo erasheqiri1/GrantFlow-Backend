@@ -286,3 +286,27 @@ class ApplicationStatusUpdate(Base):
     new_status     = Column(SAEnum(ApplicationStatus), nullable=False)
     changed_by     = Column(UUID(as_uuid=True), ForeignKey("public.users.id"), nullable=False)
     changed_at     = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class PaymentStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    PAID    = "PAID"
+
+
+class Payment(Base):
+    __tablename__  = "payments"
+    __table_args__ = (
+        UniqueConstraint("application_id", name="uq_payment_application"),
+        {"extend_existing": True}
+    )
+
+    id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    application_id = Column(UUID(as_uuid=True), ForeignKey("applications.id", ondelete="CASCADE"), nullable=False)
+    amount         = Column(Numeric(12, 2), nullable=True)
+    currency       = Column(String(10), default="EUR", nullable=False)
+    status         = Column(SAEnum(PaymentStatus), default=PaymentStatus.PENDING, nullable=False)
+    reference      = Column(String(200), nullable=True)   # referenca bankare
+    paid_at        = Column(DateTime(timezone=True), nullable=True)
+    paid_by        = Column(UUID(as_uuid=True), ForeignKey("public.users.id"), nullable=True)
+    note           = Column(String(500), nullable=True)
+    created_at     = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
