@@ -204,10 +204,10 @@ async def upload_attachment(
         )
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         if os.path.exists(file_path):
             os.remove(file_path)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Gabim gjatë ngarkimit të skedarit")
     finally:
         pub_db.close()
 
