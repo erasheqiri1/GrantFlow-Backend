@@ -1,4 +1,5 @@
 
+import uuid as _uuid
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -47,12 +48,23 @@ def require_permission(permission_codename: str):
         credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     ):
         role_name = getattr(request.state, "role", None)
+        user_id   = getattr(request.state, "user_id", None)
         if not role_name:
             raise HTTPException(status_code=401, detail="Jo i autentikuar")
 
-        # Gjithmonë query public schema — Role/Permission janë publike
         db = SessionLocal()
         try:
+            # Kontrollo nëse llogaria është aktive
+            try:
+                uid = _uuid.UUID(user_id)
+                user_obj = db.query(User).filter_by(id=uid).first()
+                if not user_obj or not user_obj.is_active:
+                    raise HTTPException(status_code=403, detail="Llogaria është çaktivizuar")
+            except HTTPException:
+                raise
+            except Exception:
+                pass  # Nëse dështon UUID-ja, vazhdo — auth middleware e ka kontrolluar
+
             role = db.query(Role).filter_by(name=role_name).first()
             if not role:
                 raise HTTPException(status_code=403, detail="Roli nuk u gjet")

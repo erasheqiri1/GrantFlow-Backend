@@ -57,10 +57,11 @@ def create_application(
 @router.get("/my", response_model=PaginatedApplicationResponse)
 def get_my_applications(
     request: Request,
+    status:  Optional[str] = Query(None, description="DRAFT | SUBMITTED | UNDER_REVIEW | APPROVED | REJECTED"),
     sortBy:  str = Query("created_at", description="created_at | submitted_at | status"),
     sortDir: str = Query("desc",       description="asc | desc"),
-    page:    int = Query(1,    ge=1),
-    size:    int = Query(1000, ge=1, le=2000),
+    page:    int = Query(1,   ge=1),
+    size:    int = Query(20,  ge=1, le=200),
     user=Depends(require_permission("applications:read_own")),
 ):
     pub_db = SessionLocal()
@@ -69,7 +70,7 @@ def get_my_applications(
         if slug:
             schema_name = f"tenant_{slug.replace('-', '_')}"
             pub_db.execute(text(f'SET search_path TO "{schema_name}", public'))
-            return app_service.get_my_applications(user, pub_db, sortBy, sortDir, page, size)
+            return app_service.get_my_applications(user, pub_db, sortBy, sortDir, page, size, status)
 
         schemas = app_service.find_schemas_for_user(user["user_id"], pub_db)
         all_apps = []
@@ -77,11 +78,14 @@ def get_my_applications(
             db2 = SessionLocal()
             try:
                 db2.execute(text(f'SET search_path TO "{schema_name}", public'))
-                result = app_service.get_my_applications(user, db2, sortBy, sortDir, 1, 2000)
+                result = app_service.get_my_applications(user, db2, sortBy, sortDir, 1, 10_000, status)
                 all_apps.extend(result["items"])
             finally:
                 db2.close()
-        return {"total": len(all_apps), "page": page, "size": size, "items": all_apps}
+        total = len(all_apps)
+        start = (page - 1) * size
+        paged = all_apps[start: start + size]
+        return {"total": total, "page": page, "size": size, "items": paged}
     finally:
         pub_db.close()
 

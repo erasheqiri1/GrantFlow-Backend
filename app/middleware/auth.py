@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 import jwt
 from app.core.config import settings
+from app.core.redis_client import is_token_blacklisted
 
 
 PUBLIC_PATHS = [
@@ -12,6 +13,7 @@ PUBLIC_PATHS = [
     "/redoc",
     "/auth/register",
     "/auth/login",
+    "/auth/logout",
     "/auth/register-org",
     "/auth/register-org/upload-doc",
     "/auth/forgot-password",
@@ -34,7 +36,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if path in PUBLIC_PATHS or any(path.startswith(p) for p in PUBLIC_PREFIXES):
             return await call_next(request)
 
-
         auth_header = request.headers.get("Authorization")
         if not auth_header or not auth_header.startswith("Bearer "):
             return JSONResponse(
@@ -44,6 +45,14 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         try:
             token = auth_header.split(" ")[1]
+
+            # Kontrollo blacklist para decode
+            if is_token_blacklisted(token):
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Token është invaliduar. Kyçu sërish."}
+                )
+
             payload = jwt.decode(
                 token,
                 settings.SECRET_KEY,

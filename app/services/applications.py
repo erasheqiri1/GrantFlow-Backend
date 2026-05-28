@@ -190,7 +190,8 @@ def get_my_applications(
     sort_by: str = "created_at",
     sort_dir: str = "desc",
     page: int = 1,
-    size: int = 1000,
+    size: int = 20,
+    status: str = None,
 ) -> dict:
     col_map = {
         "created_at":   Application.created_at,
@@ -200,6 +201,8 @@ def get_my_applications(
     col = col_map.get(sort_by, Application.created_at)
     order = col.desc() if sort_dir == "desc" else col.asc()
     query = db.query(Application).filter(Application.user_id == uuid.UUID(user["user_id"]))
+    if status:
+        query = query.filter(Application.status == status)
     total = query.count()
     apps = query.order_by(order).offset((page - 1) * size).limit(size).all()
     for app in apps:

@@ -1,12 +1,16 @@
 # app/routers/auth.py
 
 import os
+import time
 import uuid as _uuid
 
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+import jwt as _jwt
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
+from app.core.redis_client import blacklist_token, rate_limit_check
 from app.models.public.models import Tenant
 from app.schemas.auth import (
     RegisterRequest,
@@ -36,14 +40,35 @@ def register_org(data: RegisterOrgRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse, status_code=200)
-def login(data: LoginRequest, db: Session = Depends(get_db)):
-    """Login — kthen JWT token."""
+def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
+    """Login — kthen JWT token. Max 10 tentativa/minutë për IP."""
+    client_ip = (request.client.host if request.client else "unknown")
+    if not rate_limit_check(f"rl:login:{client_ip}", 10, 60):
+        raise HTTPException(status_code=429, detail="Shumë tentativa. Provo pas 1 minutë.")
     return auth_service.login_user(data, db)
 
 
+@router.post("/logout", response_model=MessageResponse, status_code=200)
+def logout(request: Request):
+    """Invalido token-in aktual duke e shtuar në blacklist."""
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        try:
+            payload = _jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+            ttl = max(int(payload.get("exp", time.time()) - time.time()), 1)
+            blacklist_token(token, ttl)
+        except Exception:
+            pass
+    return {"message": "Logout i suksesshëm"}
+
+
 @router.post("/forgot-password", response_model=MessageResponse, status_code=202)
-def forgot_password(data: ForgotPasswordRequest, db: Session = Depends(get_db)):
-    """Kërko reset të fjalëkalimit."""
+def forgot_password(request: Request, data: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """Kërko reset të fjalëkalimit. Max 5 tentativa/minutë për IP."""
+    client_ip = (request.client.host if request.client else "unknown")
+    if not rate_limit_check(f"rl:forgot:{client_ip}", 5, 60):
+        raise HTTPException(status_code=429, detail="Shumë tentativa. Provo pas 1 minutë.")
     return auth_service.forgot_password(data, db)
 
 

@@ -1,3 +1,4 @@
+import hashlib
 import json
 import redis
 from app.core.config import settings
@@ -39,3 +40,40 @@ def cache_delete_pattern(pattern: str):
             r.delete(*keys)
     except Exception:
         pass
+
+
+# ── Token blacklist ──────────────────────────────────────────────────────────
+
+def blacklist_token(token: str, ttl_seconds: int) -> None:
+    """Vendos token-in në blacklist deri sa të skadojë."""
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    try:
+        get_redis().setex(f"bl:{token_hash}", max(ttl_seconds, 1), "1")
+    except Exception:
+        pass
+
+
+def is_token_blacklisted(token: str) -> bool:
+    """Kontrollon nëse token-i është në blacklist."""
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    try:
+        return bool(get_redis().exists(f"bl:{token_hash}"))
+    except Exception:
+        return False
+
+
+# ── Rate limiting ────────────────────────────────────────────────────────────
+
+def rate_limit_check(key: str, max_requests: int, window_seconds: int) -> bool:
+    """
+    Kthen True nëse kërkesa lejohet, False nëse kufiri është tejkaluar.
+    Nëse Redis nuk është aktiv, lejon kalimin (fail-open).
+    """
+    try:
+        r = get_redis()
+        count = r.incr(key)
+        if count == 1:
+            r.expire(key, window_seconds)
+        return count <= max_requests
+    except Exception:
+        return True

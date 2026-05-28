@@ -1,9 +1,13 @@
+import re
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy import text
 from app.core.database import SessionLocal
 import jwt
 from app.core.config import settings
+
+# Lejon vetëm slug-e të formuara si: abc, abc-def, abc123
+_SLUG_RE = re.compile(r'^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$')
 
 
 PUBLIC_PATHS = [
@@ -44,6 +48,10 @@ class TenantMiddleware(BaseHTTPMiddleware):
             tenant_slug = payload.get("tenant_slug")
 
             if tenant_slug:
+
+                # Validim sigurie: refuzo slug-e me karaktere të dyshimta
+                if not _SLUG_RE.match(tenant_slug):
+                    return await call_next(request)
 
                 db = SessionLocal()
                 try:
