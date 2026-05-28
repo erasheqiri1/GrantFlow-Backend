@@ -208,3 +208,17 @@ class UserRole(Base):
         role_id = Column(UUID(as_uuid=True), ForeignKey("public.roles.id", ondelete="CASCADE"), nullable=False)
         tenant_id = Column(UUID(as_uuid=True), ForeignKey("public.tenants.id", ondelete="CASCADE"), nullable=True)
         created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class RefreshToken(Base):
+    __tablename__  = "refresh_tokens"
+    __table_args__ = {"schema": "public"}
+
+    id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    token_hash  = Column(String(64), unique=True, nullable=False, index=True)
+    user_id     = Column(UUID(as_uuid=True), ForeignKey("public.users.id", ondelete="CASCADE"), nullable=False)
+    tenant_slug = Column(String(100), nullable=True)
+    role        = Column(String(50),  nullable=False)
+    expires_at  = Column(DateTime(timezone=True), nullable=False)
+    is_revoked  = Column(Boolean, default=False, nullable=False)
+    created_at  = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)

@@ -20,6 +20,7 @@ PUBLIC_PATHS = [
     "/auth/reset-password",
     "/auth/invite/accept",
     "/auth/verify-email",
+    "/auth/refresh",
     "/tenants/public-stats",
 ]
 

@@ -21,6 +21,8 @@ from app.schemas.auth import (
     InviteAcceptRequest,
     TokenResponse,
     MessageResponse,
+    RefreshRequest,
+    LogoutRequest,
 )
 from app.services import auth as auth_service
 
@@ -49,8 +51,8 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/logout", response_model=MessageResponse, status_code=200)
-def logout(request: Request):
-    """Invalido token-in aktual duke e shtuar në blacklist."""
+def logout(request: Request, data: LogoutRequest = LogoutRequest(), db: Session = Depends(get_db)):
+    """Invalido access token-in + revoko refresh token-in."""
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
@@ -60,7 +62,15 @@ def logout(request: Request):
             blacklist_token(token, ttl)
         except Exception:
             pass
+    if data.refresh_token:
+        auth_service.revoke_refresh_token(data.refresh_token, db)
     return {"message": "Logout i suksesshëm"}
+
+
+@router.post("/refresh", response_model=TokenResponse, status_code=200)
+def refresh(data: RefreshRequest, db: Session = Depends(get_db)):
+    """Merr access token të ri duke përdorur refresh token."""
+    return auth_service.refresh_access_token(data.refresh_token, db)
 
 
 @router.post("/forgot-password", response_model=MessageResponse, status_code=202)

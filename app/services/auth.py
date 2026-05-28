@@ -2,6 +2,7 @@
 
 import jwt
 import bcrypt
+import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
@@ -9,7 +10,7 @@ from sqlalchemy import text
 from fastapi import HTTPException, status
 
 from app.core.config import settings
-from app.models.public.models import User, Tenant, Role, UserRole, PasswordResetToken, EmailVerificationToken, TenantStatus, UserProfile, ApplicantProfile
+from app.models.public.models import User, Tenant, Role, UserRole, PasswordResetToken, EmailVerificationToken, TenantStatus, UserProfile, ApplicantProfile, RefreshToken
 from app.schemas.auth import (
     RegisterRequest,
     RegisterOrgRequest,
@@ -41,6 +42,59 @@ def create_token(user_id: str, role: str, tenant_slug: str | None) -> str:
         "exp": datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
+
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def create_refresh_token(user_id: str, role: str, tenant_slug: str | None, db: Session) -> str:
+    token_value = secrets.token_urlsafe(64)
+    db.add(RefreshToken(
+        token_hash=_hash_token(token_value),
+        user_id=user_id,
+        tenant_slug=tenant_slug,
+        role=role,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+    ))
+    return token_value
+
+
+def revoke_refresh_token(token_value: str, db: Session) -> None:
+    token_hash = _hash_token(token_value)
+    db_token = db.query(RefreshToken).filter(RefreshToken.token_hash == token_hash).first()
+    if db_token:
+        db_token.is_revoked = True
+        db.commit()
+
+
+def refresh_access_token(refresh_token_value: str, db: Session) -> TokenResponse:
+    token_hash = _hash_token(refresh_token_value)
+    db_token = db.query(RefreshToken).filter(
+        RefreshToken.token_hash == token_hash,
+        RefreshToken.is_revoked == False,
+    ).first()
+
+    if not db_token:
+        raise HTTPException(status_code=401, detail="Refresh token i pavlefshëm")
+
+    if db_token.expires_at < datetime.now(timezone.utc):
+        db_token.is_revoked = True
+        db.commit()
+        raise HTTPException(status_code=401, detail="Refresh token ka skaduar. Kyçu përsëri.")
+
+    user = db.query(User).filter(User.id == db_token.user_id).first()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="Llogaria është joaktive")
+
+    new_access_token = create_token(db_token.user_id, db_token.role, db_token.tenant_slug)
+    return TokenResponse(
+        access_token=new_access_token,
+        refresh_token=refresh_token_value,
+        role=db_token.role,
+        user_id=str(db_token.user_id),
+        tenant_slug=db_token.tenant_slug,
+    )
 
 
 # ─────────────────────────────────────────
@@ -263,8 +317,16 @@ def login_user(data: LoginRequest, db: Session) -> TokenResponse:
         raise HTTPException(status_code=403, detail="Nuk ke akses")
 
     role_name = db.query(Role).filter(Role.id == user_role.role_id).first().name
-    token = create_token(user.id, role_name, tenant_slug_for_token)
-    return TokenResponse(access_token=token, role=role_name, user_id=str(user.id), tenant_slug=tenant_slug_for_token)
+    access_token = create_token(user.id, role_name, tenant_slug_for_token)
+    refresh_token = create_refresh_token(str(user.id), role_name, tenant_slug_for_token, db)
+    db.commit()
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        role=role_name,
+        user_id=str(user.id),
+        tenant_slug=tenant_slug_for_token,
+    )
 
 
 # ─────────────────────────────────────────
@@ -374,5 +436,13 @@ def accept_invite(data: InviteAcceptRequest, db: Session) -> TokenResponse:
         db.rollback()
         raise HTTPException(status_code=500, detail="Gabim gjatë aktivizimit të ftesës")
 
-    token = create_token(user.id, invite_role, tenant_slug)
-    return TokenResponse(access_token=token, role=invite_role, user_id=str(user.id), tenant_slug=tenant_slug)
+    access_token = create_token(user.id, invite_role, tenant_slug)
+    refresh_token = create_refresh_token(str(user.id), invite_role, tenant_slug, db)
+    db.commit()
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        role=invite_role,
+        user_id=str(user.id),
+        tenant_slug=tenant_slug,
+    )
