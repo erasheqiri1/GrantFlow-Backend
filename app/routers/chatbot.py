@@ -1,3 +1,4 @@
+from typing import List, Literal
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -9,8 +10,14 @@ from app.services import chatbot as chatbot_service
 router = APIRouter(prefix="/chatbot", tags=["Chatbot"])
 
 
+class HistoryMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    text: str
+
+
 class ChatRequest(BaseModel):
     message: str
+    history: List[HistoryMessage] = []
 
 
 class ChatResponse(BaseModel):
@@ -27,5 +34,10 @@ def chat(
     if not data.message or not data.message.strip():
         return ChatResponse(reply="Shkruaj diçka që të mund të të ndihmoj.")
 
-    reply = chatbot_service.chat(user["user_id"], data.message.strip(), db)
+    reply = chatbot_service.chat(
+        user["user_id"],
+        data.message.strip(),
+        db,
+        history=[{"role": h.role, "text": h.text} for h in data.history],
+    )
     return ChatResponse(reply=reply)

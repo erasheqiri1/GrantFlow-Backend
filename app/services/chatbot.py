@@ -105,8 +105,8 @@ def _get_published_grants(db: Session) -> str:
     return "\n".join(grants)
 
 
-def chat(user_id: str, message: str, db: Session) -> str:
-    """Thirr AI me kontekstin e aplikantit dhe grantet e disponueshme."""
+def chat(user_id: str, message: str, db: Session, history: list = None) -> str:
+    """Thirr AI me kontekstin e aplikantit, historikun e bisedës dhe grantet e disponueshme."""
     client, model = _get_client()
     if not client:
         raise HTTPException(
@@ -135,13 +135,23 @@ RREGULLA:
 5. Mos shpik grante — përdor vetëm ato që janë listuar më sipër.
 6. Përgjigjet të jenë të shkurtra dhe të qarta — maksimum 3-4 fjali."""
 
+    # Build messages: system + conversation history + current user message
+    messages = [{"role": "system", "content": system_prompt}]
+
+    if history:
+        for h in history:
+            role = h.get("role", "user")
+            # Map frontend role names to OpenAI roles
+            if role not in ("user", "assistant"):
+                continue
+            messages.append({"role": role, "content": h.get("text", "")})
+
+    messages.append({"role": "user", "content": message})
+
     try:
         response = client.chat.completions.create(
             model=model,
-            messages=[
-                {"role": "system",  "content": system_prompt},
-                {"role": "user",    "content": message},
-            ],
+            messages=messages,
             max_tokens=400,
             temperature=0.5,
         )
