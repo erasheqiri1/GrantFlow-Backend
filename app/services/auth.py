@@ -87,10 +87,14 @@ def refresh_access_token(refresh_token_value: str, db: Session) -> TokenResponse
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="Llogaria është joaktive")
 
-    new_access_token = create_token(db_token.user_id, db_token.role, db_token.tenant_slug)
+    # Revoko refresh token të vjetër dhe krijo të ri
+    db_token.is_revoked = True
+    new_access_token  = create_token(db_token.user_id, db_token.role, db_token.tenant_slug)
+    new_refresh_token = create_refresh_token(str(db_token.user_id), db_token.role, db_token.tenant_slug, db)
+    db.commit()
     return TokenResponse(
         access_token=new_access_token,
-        refresh_token=refresh_token_value,
+        refresh_token=new_refresh_token,
         role=db_token.role,
         user_id=str(db_token.user_id),
         tenant_slug=db_token.tenant_slug,
@@ -336,7 +340,7 @@ def login_user(data: LoginRequest, db: Session) -> TokenResponse:
 def forgot_password(data: ForgotPasswordRequest, db: Session) -> dict:
     user = db.query(User).filter(User.email == data.email).first()
     if not user:
-        raise HTTPException(status_code=404, detail="Ky email nuk ekziston në sistem.")
+        return {"message": "Nëse email ekziston, do të marrësh udhëzime."}
 
     # fshi token të vjetër nëse ekziston
     db.query(PasswordResetToken).filter(PasswordResetToken.user_id == user.id).delete()

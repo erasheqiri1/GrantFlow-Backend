@@ -33,6 +33,9 @@ PUBLIC_PREFIXES = [
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
 
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         path = request.url.path
         if path in PUBLIC_PATHS or any(path.startswith(p) for p in PUBLIC_PREFIXES):
             return await call_next(request)

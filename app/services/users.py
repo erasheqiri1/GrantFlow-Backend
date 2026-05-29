@@ -47,6 +47,8 @@ def get_users(
     sort_dir: str = "desc",
     page: int = 1,
     size: int = 20,
+    role: Optional[str] = None,
+    is_active: Optional[bool] = None,
 ) -> dict:
     col_map = {
         "created_at": User.created_at,
@@ -56,8 +58,22 @@ def get_users(
     }
     col = col_map.get(sort_by, User.created_at)
     order = col.desc() if sort_dir == "desc" else col.asc()
-    total = db.query(User).count()
-    users = db.query(User).order_by(order).offset((page - 1) * size).limit(size).all()
+
+    query = db.query(User)
+
+    if is_active is not None:
+        query = query.filter(User.is_active == is_active)
+
+    if role:
+        query = (
+            query
+            .join(UserRole, UserRole.user_id == User.id)
+            .join(Role, Role.id == UserRole.role_id)
+            .filter(Role.name == role)
+        )
+
+    total = query.count()
+    users = query.order_by(order).offset((page - 1) * size).limit(size).all()
     items = []
     for user in users:
         row = db.execute(

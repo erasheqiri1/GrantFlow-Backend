@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
@@ -29,6 +31,8 @@ class InviteSuperAdminRequest(BaseModel):
 Kthen listën e paginuar të të gjithë përdoruesve në platformë.
 
 **Kërkon rolin:** `SUPER_ADMIN`
+
+**Filtrime të disponueshme:** rol, statusi i llogarisë
 """,
     responses={
         200: {"description": "Listë e paginuar e përdoruesve"},
@@ -37,14 +41,16 @@ Kthen listën e paginuar të të gjithë përdoruesve në platformë.
     },
 )
 def list_users(
-    sortBy:  str = Query("created_at", description="created_at | email | first_name | last_name"),
-    sortDir: str = Query("desc",       description="asc | desc"),
-    page:    int = Query(1,  ge=1),
-    size:    int = Query(20, ge=1, le=500),
+    role:      Optional[str]  = Query(None,  description="SUPER_ADMIN | ORG_ADMIN | COMMISSIONER | APPLICANT"),
+    is_active: Optional[bool] = Query(None,  description="true | false"),
+    sortBy:    str  = Query("created_at", description="created_at | email | first_name | last_name"),
+    sortDir:   str  = Query("desc",       description="asc | desc"),
+    page:      int  = Query(1,  ge=1),
+    size:      int  = Query(20, ge=1, le=500),
     db: Session = Depends(get_db),
     _: dict = Depends(require_permission("users:read")),
 ):
-    return users_service.get_users(db, sortBy, sortDir, page, size)
+    return users_service.get_users(db, sortBy, sortDir, page, size, role, is_active)
 
 
 @router.post(

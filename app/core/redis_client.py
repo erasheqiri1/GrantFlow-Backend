@@ -35,7 +35,13 @@ def cache_delete_pattern(pattern: str):
     """Fshin te gjitha qelesat qe perputhen me pattern."""
     try:
         r = get_redis()
-        keys = r.keys(pattern)
+        cursor = 0
+        keys = []
+        while True:
+            cursor, batch = r.scan(cursor, match=pattern, count=100)
+            keys.extend(batch)
+            if cursor == 0:
+                break
         if keys:
             r.delete(*keys)
     except Exception:

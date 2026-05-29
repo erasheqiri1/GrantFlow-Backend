@@ -30,6 +30,9 @@ PUBLIC_PATHS = [
 class TenantMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
 
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         if request.url.path in PUBLIC_PATHS or request.url.path.startswith("/tenants/public-stats"):
             return await call_next(request)
 

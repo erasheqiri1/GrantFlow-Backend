@@ -111,19 +111,31 @@ def get_my_applications(
             return app_service.get_my_applications(user, pub_db, sortBy, sortDir, page, size, status)
 
         schemas = app_service.find_schemas_for_user(user["user_id"], pub_db)
-        all_apps = []
+        if not schemas:
+            return {"total": 0, "page": page, "size": size, "items": []}
+
+        total = 0
+        all_items = []
+        fetch_limit = page * size  # mjafton vetëm kaq për të llogaritur faqen e kërkuar
+
         for schema_name in schemas:
             db2 = SessionLocal()
             try:
                 db2.execute(text(f'SET search_path TO "{schema_name}", public'))
-                result = app_service.get_my_applications(user, db2, sortBy, sortDir, 1, 10_000, status)
-                all_apps.extend(result["items"])
+                result = app_service.get_my_applications(user, db2, sortBy, sortDir, 1, fetch_limit, status)
+                total += result["total"]
+                all_items.extend(result["items"])
             finally:
                 db2.close()
-        total = len(all_apps)
+
+        # Rirendit rezultatet e bashkuara nga skemat e ndryshme
+        reverse = sortDir == "desc"
+        attr_map = {"created_at": "created_at", "submitted_at": "submitted_at", "status": "status"}
+        attr = attr_map.get(sortBy, "created_at")
+        all_items.sort(key=lambda x: (getattr(x, attr) is None, getattr(x, attr) or ""), reverse=reverse)
+
         start = (page - 1) * size
-        paged = all_apps[start: start + size]
-        return {"total": total, "page": page, "size": size, "items": paged}
+        return {"total": total, "page": page, "size": size, "items": all_items[start: start + size]}
     finally:
         pub_db.close()
 
