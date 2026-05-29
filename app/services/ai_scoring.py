@@ -2,25 +2,12 @@ import json
 from datetime import datetime, timezone
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from openai import OpenAI
 
 from app.models.tenant.models import (
     Application, ApplicationAnswer, AIScore,
     Grant, Criteria
 )
-
-
-def _get_client():
-
-    from app.core.config import settings
-    if settings.OPENAI_API_KEY:
-        return OpenAI(api_key=settings.OPENAI_API_KEY), "gpt-4o-mini"
-    if settings.GROQ_API_KEY:
-        return OpenAI(
-            api_key=settings.GROQ_API_KEY,
-            base_url="https://api.groq.com/openai/v1",
-        ), "llama-3.1-8b-instant"
-    return None, "heuristic-fallback"
+from app.core.ai_client import get_ai_client
 
 
 def _parse_attachment_text(file_path: str) -> str:
@@ -84,7 +71,7 @@ def score_application(application_id: str, db: Session) -> AIScore:
         if text:
             doc_texts.append(f"[{att.file_name}]\n{text}")
 
-    client, model_name = _get_client()
+    client, model_name = get_ai_client()
 
     ai_score_val  = 0.0
     justification = ""
@@ -286,36 +273,6 @@ def get_score(application_id: str, db: Session) -> AIScore | None:
     return db.query(AIScore).filter(AIScore.application_id == aid).first()
 
 
-def _heuristic_score(app, answers, criteria) -> tuple[float, str]:
-    import random
-    score = 40.0
-
-    if app.motivation_letter:
-        score += min(25, len(app.motivation_letter.strip()) / 40)
-
-    answered = sum(1 for a in answers if a.answer_text and a.answer_text.strip())
-    if answers:
-        score += (answered / len(answers)) * 25
-
-    required = sum(1 for c in criteria if c.is_required)
-    if required > 0:
-        score += min(10, 10 * (answered / max(required, 1)))
-
-    score = round(min(100, max(0, score + random.uniform(-3, 3))), 2)
-
-    parts = []
-    if app.motivation_letter and len(app.motivation_letter) > 200:
-        parts.append("Letra motivuese eshte e detajuar")
-    elif app.motivation_letter:
-        parts.append("Letra motivuese eshte e shkurter")
-    else:
-        parts.append("Mungon letra motivuese")
-
-    if answers:
-        parts.append(f"{answered}/{len(answers)} pyetje te pergjigjetura")
-
-    justification = ". ".join(parts) + f". Score bazuar ne analize heuristike ({score:.0f}/100)."
-    return score, justification
 
 
 def _build_prompt(app, grant, criteria, answers, doc_texts=None) -> str:

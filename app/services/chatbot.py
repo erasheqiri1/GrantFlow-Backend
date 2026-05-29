@@ -2,21 +2,9 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from fastapi import HTTPException
-from openai import OpenAI
 
 from app.models.public.models import Tenant, TenantStatus, ApplicantProfile, User
-from app.core.config import settings
-
-
-def _get_client():
-    if settings.OPENAI_API_KEY:
-        return OpenAI(api_key=settings.OPENAI_API_KEY), "gpt-4o-mini"
-    if settings.GROQ_API_KEY:
-        return OpenAI(
-            api_key=settings.GROQ_API_KEY,
-            base_url="https://api.groq.com/openai/v1",
-        ), "llama-3.1-8b-instant"
-    return None, None
+from app.core.ai_client import get_ai_client
 
 
 def _get_applicant_profile(user_id: str, db: Session) -> str:
@@ -107,7 +95,7 @@ def _get_published_grants(db: Session) -> str:
 
 def chat(user_id: str, message: str, db: Session, history: list = None) -> str:
     """Thirr AI me kontekstin e aplikantit, historikun e bisedës dhe grantet e disponueshme."""
-    client, model = _get_client()
+    client, model = get_ai_client()
     if not client:
         raise HTTPException(
             status_code=503,
