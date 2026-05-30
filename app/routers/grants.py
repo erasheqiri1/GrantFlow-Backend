@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from typing import List, Optional
+from typing import Optional
 
 from app.core.database import SessionLocal
 from app.dependencies.auth import get_tenant_db, require_permission
@@ -14,17 +14,6 @@ router = APIRouter(prefix="/grants", tags=["Grants"])
 
 class GrantStatusUpdate(BaseModel):
     status: str
-
-
-def get_db_for_slug(tenant_slug: str):
-    """Hapet sesioni me search_path për slug te dhene."""
-    db = SessionLocal()
-    try:
-        schema_name = f"tenant_{tenant_slug.replace('-', '_')}"
-        db.execute(text(f'SET search_path TO "{schema_name}", public'))
-        yield db
-    finally:
-        db.close()
 
 
 @router.post(

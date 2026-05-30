@@ -115,7 +115,7 @@ class TenantService:
         return {"message": f"Organizata '{tenant.name}' u refuzua."}
 
     def get_platform_stats(self) -> dict:
-        tenants = self.db.query(Tenant).all()
+        tenants = self.db.query(Tenant).filter(Tenant.status == TenantStatus.ACTIVE, Tenant.is_active == True).all()
         total_grants = 0
         total_applications = 0
         for tenant in tenants:
