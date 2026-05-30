@@ -194,6 +194,7 @@ def update_grant(
 @router.delete(
     "/{grant_id}",
     status_code=204,
+    response_model=None,
     summary="Fshi grant",
     description="""
 Fshin një grant nga sistemi.

@@ -89,7 +89,25 @@ def reset_password(data: ResetPasswordRequest, db: Session = Depends(get_db)):
     return AuthService(db).reset_password(data)
 
 
-@router.post("/register-org/upload-doc", status_code=200)
+@router.post(
+    "/register-org/upload-doc",
+    response_model=MessageResponse,
+    status_code=200,
+    summary="Ngarko dokumentin e organizatës",
+    description="""
+Ngarkon dokumentin zyrtar të organizatës (certifikatë, statut, etj.) gjatë procesit të regjistrimit.
+
+Lejohen: **PDF, JPG, PNG** — maksimumi **5 MB**.
+
+Ky endpoint thirret menjëherë pas `POST /register-org`.
+""",
+    responses={
+        200: {"description": "Dokumenti u ngarkua me sukses"},
+        404: {"description": "Organizata nuk u gjet"},
+        413: {"description": "Skedari tejkalon limitin 5 MB"},
+        415: {"description": "Lloji i skedarit nuk lejohet — vetëm PDF, JPG, PNG"},
+    },
+)
 async def upload_org_doc(
     org_slug: str,
     file: UploadFile = File(...),

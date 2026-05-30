@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.dependencies.auth import require_permission
-from app.schemas.tenants import TenantListResponse
+from app.schemas.tenants import TenantListResponse, TenantResponse
 from app.services.tenants import TenantService
 
 router = APIRouter(prefix="/tenants", tags=["Tenants"])
@@ -14,6 +14,7 @@ router = APIRouter(prefix="/tenants", tags=["Tenants"])
 
 @router.get(
     "/public-stats",
+    response_model=dict,
     summary="Statistika publike të platformës",
     description="Kthen statistika të përgjithshme (numri i organizatave, granteve) pa kërkuar autentikim.",
     responses={
@@ -80,6 +81,7 @@ class TenantStatusUpdate(BaseModel):
 
 @router.patch(
     "/{tenant_id}/status",
+    response_model=TenantResponse,
     summary="Ndrysho statusin e organizatës",
     description="""
 Ndryshon statusin e një organizate.

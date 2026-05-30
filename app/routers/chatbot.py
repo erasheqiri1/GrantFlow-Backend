@@ -24,7 +24,23 @@ class ChatResponse(BaseModel):
     reply: str
 
 
-@router.post("", response_model=ChatResponse)
+@router.post(
+    "",
+    response_model=ChatResponse,
+    summary="Chatbot AI për aplikantët",
+    description="""
+Dërgon mesazh te chatbot-i AI dhe merr përgjigje.
+
+**Kërkon rolin:** `APPLICANT`
+
+Chatbot-i sugjeron grante të përshtatshme bazuar në profilin e userit dhe historinë e bisedës.
+""",
+    responses={
+        200: {"description": "Përgjigja e chatbot-it"},
+        401: {"description": "Token mungon ose i pavlefshëm"},
+        403: {"description": "Nuk ke leje — kërkohet APPLICANT"},
+    },
+)
 def chat(
     data: ChatRequest,
     user=Depends(require_permission("applications:read_own")),

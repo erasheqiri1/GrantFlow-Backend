@@ -282,5 +282,10 @@ class AIScoreService:
         return self.db.query(AIScore).filter(AIScore.application_id == aid).first()
 
 
-# Alias pas klasës — për backward compatibility me testet
+# Alias pas klasës — për backward compatibility me testet dhe Celery tasks
 _build_prompt = AIScoreService._build_prompt
+
+
+def score_application(application_id: str, db) -> AIScore:
+    """Wrapper funksion për Celery task — thirr AIScoreService.score_application."""
+    return AIScoreService(db).score_application(application_id)

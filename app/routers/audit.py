@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.dependencies.auth import require_permission
+from app.schemas.audit import PaginatedAuditLogResponse
 from app.services.audit import AuditService
 
 router = APIRouter(prefix="/audit-logs", tags=["Audit"])
@@ -13,6 +14,7 @@ router = APIRouter(prefix="/audit-logs", tags=["Audit"])
 
 @router.get(
     "",
+    response_model=PaginatedAuditLogResponse,
     summary="Audit logs të platformës",
     description="""
 Kthen listën e paginuar të log-eve të veprimeve në platformë.

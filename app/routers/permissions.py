@@ -15,7 +15,21 @@ class ToggleRequest(BaseModel):
     permission_codename: str
 
 
-@router.get("/matrix")
+@router.get(
+    "/matrix",
+    response_model=dict,
+    summary="Matrica e lejeve",
+    description="""
+Kthen matricën e plotë roles × permissions — të gjitha rolet dhe lejet e tyre aktive.
+
+**Kërkon rolin:** `SUPER_ADMIN`
+""",
+    responses={
+        200: {"description": "Matrica e lejeve sipas roleve"},
+        401: {"description": "Token mungon ose i pavlefshëm"},
+        403: {"description": "Nuk ke leje — kërkohet SUPER_ADMIN"},
+    },
+)
 def get_matrix(
     db: Session = Depends(get_db),
     _: dict = Depends(require_permission("users:assign_role")),
@@ -60,7 +74,24 @@ def get_matrix(
     }
 
 
-@router.patch("/roles/{role_name}")
+@router.patch(
+    "/roles/{role_name}",
+    response_model=dict,
+    summary="Ndrysho lejet e një roli",
+    description="""
+Shton ose heq një leje nga një rol (toggle).
+
+**Kërkon rolin:** `SUPER_ADMIN`
+
+Nëse leja ekziston, hiqet. Nëse nuk ekziston, shtohet.
+""",
+    responses={
+        200: {"description": "Leja u shtua ose u hoq — kthen `action: granted | revoked`"},
+        401: {"description": "Token mungon ose i pavlefshëm"},
+        403: {"description": "Nuk ke leje — kërkohet SUPER_ADMIN"},
+        404: {"description": "Roli ose leja nuk u gjet"},
+    },
+)
 def toggle_permission(
     role_name: str,
     data: ToggleRequest,

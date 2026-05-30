@@ -140,7 +140,24 @@ def get_my_applications(
         pub_db.close()
 
 
-@router.patch("/{application_id}", response_model=ApplicationResponse)
+@router.patch(
+    "/{application_id}",
+    response_model=ApplicationResponse,
+    summary="Përditëso aplikimin",
+    description="""
+Përditëson të dhënat e një aplikimi ekzistues.
+
+**Kërkon rolin:** `APPLICANT` (pronari i aplikimit)
+
+Lejohet vetëm ndërsa aplikimi është në statusin **DRAFT**.
+""",
+    responses={
+        200: {"description": "Aplikim i përditësuar"},
+        401: {"description": "Token mungon ose i pavlefshëm"},
+        403: {"description": "Nuk ke leje"},
+        404: {"description": "Aplikimi nuk u gjet"},
+    },
+)
 def update_application(
     application_id: str,
     data: ApplicationUpdate,
@@ -271,7 +288,24 @@ def get_application(
         pub_db.close()
 
 
-@router.post("/{application_id}/attachments", response_model=AttachmentResponse, status_code=201)
+@router.post(
+    "/{application_id}/attachments",
+    response_model=AttachmentResponse,
+    status_code=201,
+    summary="Ngarko dokument mbështetës",
+    description="""
+Ngarkon një dokument mbështetës për aplikimin (PDF, JPG, PNG, DOC — max 5 MB).
+
+**Kërkon rolin:** `APPLICANT` (pronari i aplikimit)
+""",
+    responses={
+        201: {"description": "Dokument i ngarkuar me sukses"},
+        401: {"description": "Token mungon ose i pavlefshëm"},
+        403: {"description": "Nuk ke leje"},
+        413: {"description": "Skedari tejkalon limitin 5 MB"},
+        415: {"description": "Lloji i skedarit nuk lejohet"},
+    },
+)
 async def upload_attachment(
     application_id: str,
     file: UploadFile = File(...),
@@ -335,7 +369,22 @@ async def upload_attachment(
         pub_db.close()
 
 
-@router.patch("/{application_id}/commissioner", response_model=ApplicationResponse)
+@router.patch(
+    "/{application_id}/commissioner",
+    response_model=ApplicationResponse,
+    summary="Cakto komisioner për aplikim",
+    description="""
+ORG_ADMIN cakton komisionerin përgjegjës për shqyrtimin e aplikimit.
+
+**Kërkon rolin:** `ORG_ADMIN`
+""",
+    responses={
+        200: {"description": "Komisioner i caktuar me sukses"},
+        401: {"description": "Token mungon ose i pavlefshëm"},
+        403: {"description": "Nuk ke leje — kërkohet ORG_ADMIN"},
+        404: {"description": "Aplikimi ose komisioni nuk u gjet"},
+    },
+)
 def assign_application(
     application_id: str,
     data: AssignRequest,
@@ -349,7 +398,25 @@ def assign_application(
 # Aprovimi/refuzimi bëhet automatikisht nga finalize_grant() pas deadline + vlerësimit komisioner.
 
 
-@router.get("/{application_id}/attachments", response_model=List[AttachmentResponse])
+@router.get(
+    "/{application_id}/attachments",
+    response_model=List[AttachmentResponse],
+    summary="Dokumentet e aplikimit",
+    description="""
+Kthen listën e dokumenteve të ngarkuara për aplikimin.
+
+**Kërkon:** User i autentikuar.
+
+- `APPLICANT` → sheh vetëm dokumentet e aplikimeve të tij
+- `ORG_ADMIN` / `COMMISSIONER` → sheh të gjitha dokumentet
+""",
+    responses={
+        200: {"description": "Lista e dokumenteve"},
+        401: {"description": "Token mungon ose i pavlefshëm"},
+        403: {"description": "Nuk ke leje"},
+        404: {"description": "Aplikimi nuk u gjet"},
+    },
+)
 def get_attachments(
     application_id: str,
     user=Depends(get_current_user),
@@ -369,7 +436,27 @@ def get_attachments(
         pub_db.close()
 
 
-@router.post("/{application_id}/score", status_code=202)
+@router.post(
+    "/{application_id}/score",
+    status_code=202,
+    response_model=dict,
+    summary="Nis vlerësimin AI",
+    description="""
+Nis vlerësimin e aplikimit nga AI (OpenAI) si detyrë background (Celery).
+
+**Kërkon rolin:** `ORG_ADMIN` ose `COMMISSIONER`
+
+Kthen `202 Accepted` menjëherë. Pas ~5 sekondash, rezultati mund të merret me `GET /{application_id}/score`.
+
+Nëse score ekziston tashmë, kthehet direkt pa ri-procesuar.
+""",
+    responses={
+        202: {"description": "Vlerësimi u nis ose ekziston tashmë (cached)"},
+        401: {"description": "Token mungon ose i pavlefshëm"},
+        403: {"description": "Nuk ke leje — kërkohet ORG_ADMIN ose COMMISSIONER"},
+        404: {"description": "Aplikimi nuk u gjet"},
+    },
+)
 def score_application(
     application_id: str,
     user=Depends(require_permission("applications:read_all")),
@@ -396,7 +483,24 @@ def score_application(
         pub_db.close()
 
 
-@router.get("/{application_id}/score", response_model=AIScoreResponse)
+@router.get(
+    "/{application_id}/score",
+    response_model=AIScoreResponse,
+    summary="Merr rezultatin e vlerësimit AI",
+    description="""
+Kthen rezultatin e vlerësimit AI për aplikimin.
+
+**Kërkon rolin:** `ORG_ADMIN` ose `COMMISSIONER`
+
+Nëse vlerësimi nuk ka përfunduar ende, kthen `404`. Pollon çdo 5 sekonda pas `POST /score`.
+""",
+    responses={
+        200: {"description": "Rezultati i vlerësimit AI"},
+        401: {"description": "Token mungon ose i pavlefshëm"},
+        403: {"description": "Nuk ke leje"},
+        404: {"description": "Vlerësimi nuk ekziston akoma — provo pas 5 sekondash"},
+    },
+)
 def get_score(
     application_id: str,
     user=Depends(require_permission("applications:read_all")),
@@ -414,7 +518,25 @@ def get_score(
         pub_db.close()
 
 
-@router.patch("/{application_id}/commissioner-score", response_model=AIScoreResponse)
+@router.patch(
+    "/{application_id}/commissioner-score",
+    response_model=AIScoreResponse,
+    summary="Jep pikët e komisionerit",
+    description="""
+Komisioner ose ORG_ADMIN jep pikët manuale (0–100) për aplikimin.
+
+**Kërkon rolin:** `ORG_ADMIN` ose `COMMISSIONER`
+
+Pas regjistrimit të pikëve, `final_score` rillogaritet automatikisht si mesatare e AI score dhe commissioner score.
+""",
+    responses={
+        200: {"description": "Pikët u regjistruan dhe final_score u rillogarit"},
+        401: {"description": "Token mungon ose i pavlefshëm"},
+        403: {"description": "Nuk ke leje"},
+        404: {"description": "Aplikimi nuk u gjet"},
+        422: {"description": "Pikët duhet të jenë ndërmjet 0 dhe 100"},
+    },
+)
 def submit_commissioner_score(
     application_id: str,
     data: CommissionerScoreRequest,

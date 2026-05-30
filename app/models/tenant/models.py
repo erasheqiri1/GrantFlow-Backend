@@ -8,6 +8,7 @@ from sqlalchemy import (
     Enum as SAEnum
 )
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 from app.core.database import Base
 
 
@@ -67,11 +68,17 @@ class Grant(Base):
     max_applicants = Column(Integer,        nullable=True)
     status         = Column(SAEnum(GrantStatus),   default=GrantStatus.DRAFT,  nullable=False)
     applicant_type = Column(SAEnum(ApplicantType), default=ApplicantType.ANY,  nullable=False)
-    ai_weight      = Column(Numeric(5,2), default=0.60, nullable=False)
+    ai_weight      = Column(Numeric(5, 2), default=0.60, nullable=False)
     created_by     = Column(UUID(as_uuid=True), ForeignKey("public.users.id"), nullable=False)
     created_at     = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at     = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
                             onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
+    # Relationships
+    criteria     = relationship("Criteria",            back_populates="grant", cascade="all, delete-orphan")
+    tags         = relationship("GrantTag",             back_populates="grant", cascade="all, delete-orphan")
+    questions    = relationship("ApplicationQuestion",  back_populates="grant", cascade="all, delete-orphan")
+    applications = relationship("Application",          back_populates="grant", cascade="all, delete-orphan")
 
 
 class Criteria(Base):
@@ -88,6 +95,10 @@ class Criteria(Base):
     min_value   = Column(Numeric(5, 2), nullable=True)
     is_required = Column(Boolean,       default=True, nullable=False)
 
+    # Relationships
+    grant              = relationship("Grant",              back_populates="criteria")
+    commissioner_scores = relationship("CommissionerScore", back_populates="criteria", cascade="all, delete-orphan")
+
 
 class GrantTag(Base):
     __tablename__  = "grant_tags"
@@ -99,6 +110,9 @@ class GrantTag(Base):
     id       = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     grant_id = Column(UUID(as_uuid=True), ForeignKey("grants.id", ondelete="CASCADE"), nullable=False)
     tag      = Column(String(50), nullable=False)
+
+    # Relationships
+    grant = relationship("Grant", back_populates="tags")
 
 
 class ApplicationQuestion(Base):
@@ -112,6 +126,10 @@ class ApplicationQuestion(Base):
     is_required   = Column(Boolean, default=True, nullable=False)
     order_no      = Column(Integer, default=1,    nullable=False)
 
+    # Relationships
+    grant   = relationship("Grant",               back_populates="questions")
+    answers = relationship("ApplicationAnswer",    back_populates="question", cascade="all, delete-orphan")
+
 
 class Application(Base):
     __tablename__  = "applications"
@@ -121,8 +139,8 @@ class Application(Base):
     )
 
     id                = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    grant_id          = Column(UUID(as_uuid=True), ForeignKey("grants.id", ondelete="CASCADE"), nullable=False)
-    user_id           = Column(UUID(as_uuid=True), ForeignKey("public.users.id", ondelete="CASCADE"), nullable=False)
+    grant_id          = Column(UUID(as_uuid=True), ForeignKey("grants.id",        ondelete="CASCADE"), nullable=False)
+    user_id           = Column(UUID(as_uuid=True), ForeignKey("public.users.id",  ondelete="CASCADE"), nullable=False)
     status            = Column(SAEnum(ApplicationStatus), default=ApplicationStatus.DRAFT, nullable=False)
     motivation_letter = Column(Text, nullable=True)
     submitted_at      = Column(DateTime(timezone=True), nullable=True)
@@ -134,6 +152,17 @@ class Application(Base):
     updated_at        = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
                                onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
+    # Relationships
+    grant          = relationship("Grant",                  back_populates="applications")
+    answers        = relationship("ApplicationAnswer",       back_populates="application", cascade="all, delete-orphan")
+    attachments    = relationship("Attachment",              back_populates="application", cascade="all, delete-orphan")
+    cv             = relationship("CV",                      back_populates="application", uselist=False, cascade="all, delete-orphan")
+    ai_score       = relationship("AIScore",                 back_populates="application", uselist=False, cascade="all, delete-orphan")
+    commissioner_scores   = relationship("CommissionerScore",   back_populates="application", cascade="all, delete-orphan")
+    commissioner_decision = relationship("CommissionerDecision", back_populates="application", uselist=False, cascade="all, delete-orphan")
+    status_updates = relationship("ApplicationStatusUpdate", back_populates="application", cascade="all, delete-orphan")
+    payment        = relationship("Payment",                 back_populates="application", uselist=False, cascade="all, delete-orphan")
+
 
 class ApplicationAnswer(Base):
     __tablename__  = "application_answers"
@@ -143,10 +172,14 @@ class ApplicationAnswer(Base):
     )
 
     id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    application_id = Column(UUID(as_uuid=True), ForeignKey("applications.id", ondelete="CASCADE"), nullable=False)
+    application_id = Column(UUID(as_uuid=True), ForeignKey("applications.id",          ondelete="CASCADE"), nullable=False)
     question_id    = Column(UUID(as_uuid=True), ForeignKey("application_questions.id", ondelete="CASCADE"), nullable=False)
     answer_text    = Column(Text, nullable=True)
     created_at     = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    # Relationships
+    application = relationship("Application",        back_populates="answers")
+    question    = relationship("ApplicationQuestion", back_populates="answers")
 
 
 class CV(Base):
@@ -163,6 +196,9 @@ class CV(Base):
     parsed_text    = Column(Text,        nullable=True)
     uploaded_at    = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
+    # Relationships
+    application = relationship("Application", back_populates="cv")
+
 
 class Attachment(Base):
     __tablename__  = "attachments"
@@ -176,6 +212,9 @@ class Attachment(Base):
     size_bytes     = Column(Integer,     nullable=True)
     uploaded_at    = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
+    # Relationships
+    application = relationship("Application", back_populates="attachments")
+
 
 class AIScore(Base):
     __tablename__  = "ai_scores"
@@ -184,19 +223,22 @@ class AIScore(Base):
         {"extend_existing": True}
     )
 
-    id                = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    application_id    = Column(UUID(as_uuid=True), ForeignKey("applications.id", ondelete="CASCADE"), nullable=False)
-    ai_score          = Column(Numeric(5, 2), nullable=True)
-    justification     = Column(Text,          nullable=True)
-    commissioner_score = Column(Numeric(5, 2), nullable=True)   # 0-100, i dhënë nga komisioner
-    final_score       = Column(Numeric(5, 2), nullable=True)    # (ai×w) + (comm×(1-w))
-    rank_position     = Column(Integer,       nullable=True)
-    model_used        = Column(String(100),   nullable=True)
-    is_cached         = Column(Boolean, default=False, nullable=False)
-    scored_at         = Column(DateTime(timezone=True), nullable=True)
-    created_at     = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at     = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
-                            onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+    id                 = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    application_id     = Column(UUID(as_uuid=True), ForeignKey("applications.id", ondelete="CASCADE"), nullable=False)
+    ai_score           = Column(Numeric(5, 2), nullable=True)
+    justification      = Column(Text,          nullable=True)
+    commissioner_score = Column(Numeric(5, 2), nullable=True)
+    final_score        = Column(Numeric(5, 2), nullable=True)
+    rank_position      = Column(Integer,       nullable=True)
+    model_used         = Column(String(100),   nullable=True)
+    is_cached          = Column(Boolean, default=False, nullable=False)
+    scored_at          = Column(DateTime(timezone=True), nullable=True)
+    created_at         = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at         = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+                                onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
+    # Relationships
+    application = relationship("Application", back_populates="ai_score")
 
 
 class CommissionerScore(Base):
@@ -209,12 +251,16 @@ class CommissionerScore(Base):
     id              = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     application_id  = Column(UUID(as_uuid=True), ForeignKey("applications.id", ondelete="CASCADE"), nullable=False)
     commissioner_id = Column(UUID(as_uuid=True), ForeignKey("public.users.id"), nullable=False)
-    criteria_id     = Column(UUID(as_uuid=True), ForeignKey("criteria.id", ondelete="CASCADE"), nullable=False)
+    criteria_id     = Column(UUID(as_uuid=True), ForeignKey("criteria.id",     ondelete="CASCADE"), nullable=False)
     score           = Column(Integer, nullable=False)
     comment         = Column(Text,    nullable=True)
     created_at      = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at      = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
                              onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
+    # Relationships
+    application = relationship("Application", back_populates="commissioner_scores")
+    criteria    = relationship("Criteria",    back_populates="commissioner_scores")
 
 
 class CommissionerDecision(Base):
@@ -230,6 +276,9 @@ class CommissionerDecision(Base):
     decision        = Column(SAEnum(DecisionType), nullable=False)
     reason          = Column(Text,       nullable=True)
     decided_at      = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    # Relationships
+    application = relationship("Application", back_populates="commissioner_decision")
 
 
 class CommissionerWorkload(Base):
@@ -281,11 +330,14 @@ class ApplicationStatusUpdate(Base):
     __table_args__ = {"extend_existing": True}
 
     id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    application_id = Column(UUID(as_uuid=True), ForeignKey("applications.id", ondelete="CASCADE"), nullable=False)
+    application_id = Column(UUID(as_uuid=True), ForeignKey("applications.id",  ondelete="CASCADE"), nullable=False)
     old_status     = Column(SAEnum(ApplicationStatus), nullable=False)
     new_status     = Column(SAEnum(ApplicationStatus), nullable=False)
     changed_by     = Column(UUID(as_uuid=True), ForeignKey("public.users.id"), nullable=False)
     changed_at     = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    # Relationships
+    application = relationship("Application", back_populates="status_updates")
 
 
 class PaymentStatus(str, enum.Enum):
@@ -305,8 +357,11 @@ class Payment(Base):
     amount         = Column(Numeric(12, 2), nullable=True)
     currency       = Column(String(10), default="EUR", nullable=False)
     status         = Column(SAEnum(PaymentStatus), default=PaymentStatus.PENDING, nullable=False)
-    reference      = Column(String(200), nullable=True)   # referenca bankare
+    reference      = Column(String(200), nullable=True)
     paid_at        = Column(DateTime(timezone=True), nullable=True)
     paid_by        = Column(UUID(as_uuid=True), ForeignKey("public.users.id"), nullable=True)
     note           = Column(String(500), nullable=True)
     created_at     = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    # Relationships
+    application = relationship("Application", back_populates="payment")

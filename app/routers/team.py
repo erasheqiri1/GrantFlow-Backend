@@ -11,6 +11,7 @@ router = APIRouter(tags=["Team"])
 @router.post(
     "/invitations",
     status_code=202,
+    response_model=TeamMemberResponse,
     summary="Dërgo ftesë anëtari të ri",
     description="""
 Gjeneron një ftesë për COMMISSIONER ose ORG_ADMIN të ri.
@@ -66,6 +67,7 @@ def get_team(
 @router.delete(
     "/team/{member_id}",
     status_code=204,
+    response_model=None,
     summary="Largo anëtar nga ekipi",
     description="""
 Largon një anëtar nga organizata dhe e deaktivon llogarinë e tij.
