@@ -390,3 +390,9 @@ class AuthService:
             user_id=str(user.id),
             tenant_slug=tenant_slug,
         )
+
+
+# Alias-et për testet — eksportojnë static methods si funksione të lira
+hash_password   = AuthService.hash_password
+verify_password = AuthService.verify_password
+create_token    = AuthService.create_token
