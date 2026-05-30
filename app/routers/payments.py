@@ -86,21 +86,15 @@ def get_my_payment(
     application_id: str,
     user=Depends(require_permission("applications:read_own")),
 ):
-    """
-    Punon edhe pa tenant_slug në JWT — gjen schemën nga application_id.
-    """
     pub_db = SessionLocal()
     try:
-        # 1. Gjej schemën nga application_id
         slug = getattr(request.state, "tenant_slug", None)
         if slug:
             schema_name = f"tenant_{slug.replace('-', '_')}"
         else:
-            # Kërko nëpër të gjitha schemat aktive
             from app.services.applications import find_schema_for_application
             schema_name = find_schema_for_application(application_id, pub_db)
 
-        # 2. Verifiko që aplikimi i takon userit aktual
         pub_db.execute(text(f'SET search_path TO "{schema_name}", public'))
         row = pub_db.execute(
             text(f'SELECT user_id FROM "{schema_name}".applications WHERE id = :aid'),
@@ -111,7 +105,6 @@ def get_my_payment(
         if str(row[0]) != str(user["user_id"]):
             raise HTTPException(status_code=403, detail="Ky aplikim nuk është yti")
 
-        # 3. Merr pagesën
         return PaymentService(pub_db).get_payment_by_application(application_id)
     finally:
         pub_db.close()

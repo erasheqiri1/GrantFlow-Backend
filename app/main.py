@@ -14,10 +14,8 @@ from app.routers import auth, profile, tenants, grants, team, users, application
 
 logger = logging.getLogger("grantflow")
 
-# Sigurohemi që direktoria uploads ekziston
 os.makedirs("uploads/attachments", exist_ok=True)
 
-# /docs dhe /redoc aktive vetëm në development
 _ENV = os.getenv("ENV", "development")
 _docs_url    = "/docs"         if _ENV != "production" else None
 _redoc_url   = "/redoc"        if _ENV != "production" else None
@@ -73,7 +71,6 @@ Authorization: Bearer <access_token>
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """Kap çdo gabim të papritur — loggon stack trace, kthek klientit mesazh të sigurt."""
     logger.error(
         "Gabim i papritur: %s %s\n%s",
         request.method,

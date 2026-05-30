@@ -34,7 +34,6 @@ def get_matrix(
     db: Session = Depends(get_db),
     _: dict = Depends(require_permission("users:assign_role")),
 ):
-    """Kthen matricën e plotë roles × permissions."""
     permissions = (
         db.query(Permission)
         .order_by(Permission.resource, Permission.action)
@@ -42,7 +41,6 @@ def get_matrix(
     )
     roles = db.query(Role).order_by(Role.name).all()
 
-    # role_name -> set e permission_id-ve aktive
     role_perm_map: dict[str, set] = {}
     for role in roles:
         rps = db.query(RolePermission).filter(RolePermission.role_id == role.id).all()
@@ -62,7 +60,6 @@ def get_matrix(
             {"id": str(r.id), "name": r.name.value}
             for r in roles
         ],
-        # role_name -> [codenames aktive]
         "mappings": {
             role_name: [
                 p.codename
@@ -98,7 +95,6 @@ def toggle_permission(
     db: Session = Depends(get_db),
     _: dict = Depends(require_permission("users:assign_role")),
 ):
-    """Shton ose heq një leje nga një rol (toggle)."""
     role = db.query(Role).filter(Role.name == role_name).first()
     if not role:
         raise HTTPException(status_code=404, detail="Roli nuk u gjet")

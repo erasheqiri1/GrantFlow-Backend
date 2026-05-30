@@ -12,7 +12,6 @@ from app.services.audit import log_action
 
 
 class TeamService:
-    """Shërbimi për menaxhimin e ekipit dhe ftesave."""
 
     def __init__(self, db: Session):
         self.db = db

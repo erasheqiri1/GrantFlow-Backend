@@ -129,10 +129,8 @@ def get_grant(
     db = SessionLocal()
     try:
         if slug:
-            # ORG_ADMIN / COMMISSIONER — di schemën e tij
             schema_name = f"tenant_{slug.replace('-', '_')}"
         else:
-            #gjen schemën automatikisht nga grant_id
             from app.services.applications import find_schema_for_grant
             import uuid as _uuid
             try:
@@ -143,7 +141,6 @@ def get_grant(
 
         db.execute(text(f'SET search_path TO "{schema_name}", public'))
         result = GrantService(db).get_grant_detail(grant_id)
-        # Shton tenant info nëse mungon slug
         if not slug:
             schema_slug = schema_name.replace("tenant_", "", 1)
             result["tenant_slug"] = schema_slug
@@ -242,5 +239,3 @@ def update_grant_status(
     raise HTTPException(status_code=400, detail="Status i pavlefshëm. Lejohet: PUBLISHED, CLOSED")
 
 
-# Finalizimi është automatik — thirret nga _check_auto_finalize në ai_scoring.py
-# pas deadline + vlerësimit të plotë nga komisionerët.

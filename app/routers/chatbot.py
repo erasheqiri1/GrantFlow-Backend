@@ -46,7 +46,6 @@ def chat(
     user=Depends(require_permission("applications:read_own")),
     db: Session = Depends(get_db),
 ):
-    """Chatbot për aplikantët — sugjeron grante bazuar në profilin e userit."""
     if not data.message or not data.message.strip():
         return ChatResponse(reply="Shkruaj diçka që të mund të të ndihmoj.")
 

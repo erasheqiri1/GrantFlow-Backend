@@ -103,7 +103,6 @@ class ApplicantProfile(Base):
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
-    # per student
     study_level         = Column(String(50),  nullable=True)
     study_status        = Column(String(50),  nullable=True)
     study_year          = Column(Integer,     nullable=True)
@@ -111,14 +110,12 @@ class ApplicantProfile(Base):
     study_program       = Column(String(200), nullable=True)
     university          = Column(String(200), nullable=True)
 
-    # per biznes
     business_name       = Column(String(200), nullable=True)
     business_type       = Column(String(100), nullable=True)
     activity_field      = Column(String(200), nullable=True)
     num_employees       = Column(String(50),  nullable=True)
     founded_year        = Column(Integer,     nullable=True)
 
-    # per ojq
     org_name            = Column(String(200), nullable=True)
     org_type            = Column(String(100), nullable=True)
     org_field           = Column(String(200), nullable=True)
@@ -126,14 +123,12 @@ class ApplicantProfile(Base):
     org_founded_year    = Column(Integer,     nullable=True)
     reg_number          = Column(String(100), nullable=True)
 
-    # per individ
     profession          = Column(String(200), nullable=True)
     experience_years    = Column(String(50),  nullable=True)
     key_skills          = Column(Text,        nullable=True)
     portfolio_url       = Column(String(300), nullable=True)
     cv_path             = Column(String(500), nullable=True)
 
-    # te tjera
     role_title          = Column(String(200), nullable=True)
     interest_field      = Column(String(200), nullable=True)
     relevant_link       = Column(String(300), nullable=True)
@@ -161,7 +156,6 @@ class EmailVerificationToken(Base):
     expires_at = Column(DateTime(timezone=True), nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
-# implementimi i RBAC
 
 class Role(Base):
     __tablename__  = "roles"

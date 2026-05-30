@@ -17,7 +17,6 @@ from app.services.audit import log_action
 
 
 class UserService:
-    """Shërbimi për menaxhimin e përdoruesve."""
 
     def __init__(self, db: Session):
         self.db = db

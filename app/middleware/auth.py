@@ -50,7 +50,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
         try:
             token = auth_header.split(" ")[1]
 
-            # Kontrollo blacklist para decode
             if is_token_blacklisted(token):
                 return JSONResponse(
                     status_code=401,

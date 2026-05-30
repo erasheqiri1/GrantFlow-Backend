@@ -7,7 +7,6 @@ from app.schemas.criteria import CriteriaCreate, CriteriaUpdate, QuestionCreate,
 
 
 class CriteriaService:
-    """Shërbimi për menaxhimin e kritereve dhe pyetjeve të granteve."""
 
     def __init__(self, db: Session):
         self.db = db
@@ -22,7 +21,6 @@ class CriteriaService:
             raise HTTPException(status_code=404, detail="Grant nuk u gjet")
         return grant
 
-    # ── Kriteret ──────────────────────────────
 
     def create_criteria(self, grant_id: str, data: CriteriaCreate) -> Criteria:
         grant = self._get_grant(grant_id)
@@ -67,7 +65,6 @@ class CriteriaService:
         self.db.delete(criteria)
         self.db.commit()
 
-    # ── Pyetjet ───────────────────────────────
 
     def create_question(self, grant_id: str, data: QuestionCreate) -> ApplicationQuestion:
         grant = self._get_grant(grant_id)

@@ -3,12 +3,6 @@ from app.core.celery_app import celery_app
 
 @celery_app.task(name="score_application_ai", bind=True, max_retries=3)
 def score_application_task(self, application_id: str, schema_name: str) -> dict:
-    """
-    Celery background task — thirr OpenAI/Groq dhe ruaj score në ai_scores.
-    Retry deri 3 herë me interval në rritje (30s, 60s, 120s).
-    Nëse të gjitha tentativat dështojnë, ruhet model_used='unavailable'
-    dhe commissioner nuk mund të shtojë score derisa AI të jetë aktiv.
-    """
     from sqlalchemy import text
     from app.core.database import SessionLocal
     from app.services.ai_scoring import score_application
@@ -26,7 +20,6 @@ def score_application_task(self, application_id: str, schema_name: str) -> dict:
         }
     except Exception as exc:
         db.close()
-        # Retry me interval në rritje: 30s → 60s → 120s
         retry_count  = self.request.retries
         countdown    = 30 * (2 ** retry_count)
         raise self.retry(exc=exc, countdown=countdown)

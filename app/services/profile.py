@@ -16,7 +16,6 @@ APPLICANT_FIELDS = [
 
 
 class ProfileService:
-    """Shërbimi për menaxhimin e profilit të përdoruesit."""
 
     def __init__(self, db: Session):
         self.db = db

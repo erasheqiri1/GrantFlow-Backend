@@ -17,14 +17,12 @@ class Settings(BaseSettings):
     SUPER_ADMIN_EMAIL: str = ""
     SUPER_ADMIN_PASSWORD: str = ""
 
-    # Email (Gmail SMTP)
     MAIL_USERNAME: str = ""
     MAIL_PASSWORD: str = ""
     MAIL_FROM:     str = ""
     MAIL_SERVER:   str = "smtp.gmail.com"
     MAIL_PORT:     int = 587
 
-    # Frontend URL
     FRONTEND_URL:  str = "http://localhost:5173"
 
     class Config:

@@ -12,9 +12,6 @@ from app.services.criteria import CriteriaService
 router = APIRouter(prefix="/grants", tags=["Criteria & Questions"])
 
 
-# ─────────────────────────────────────────
-# Kriteret
-# ─────────────────────────────────────────
 
 @router.post(
     "/{grant_id}/criteria",
@@ -120,9 +117,6 @@ def delete_criteria(
     CriteriaService(db).delete_criteria(grant_id, criteria_id)
 
 
-# ─────────────────────────────────────────
-# Pyetjet
-# ─────────────────────────────────────────
 
 @router.post(
     "/{grant_id}/questions",

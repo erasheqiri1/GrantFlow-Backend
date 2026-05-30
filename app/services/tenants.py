@@ -10,7 +10,6 @@ from app.services.audit import log_action
 
 
 class TenantService:
-    """Shërbimi për menaxhimin e organizatave (tenants)."""
 
     def __init__(self, db: Session):
         self.db = db

@@ -14,12 +14,10 @@ from app.services.audit import log_action
 
 
 class ApplicationService:
-    """Shërbimi për menaxhimin e aplikimeve."""
 
     def __init__(self, db: Session):
         self.db = db
 
-    # ── Schema helpers ────────────────────────
 
     def find_schema_for_application(self, application_id: str) -> str:
         tenants = self.db.query(Tenant).filter(Tenant.status == TenantStatus.ACTIVE).all()
@@ -68,7 +66,6 @@ class ApplicationService:
                 continue
         raise HTTPException(status_code=404, detail="Grant nuk u gjet ose nuk është PUBLISHED")
 
-    # ── Enrich helpers ────────────────────────
 
     def _enrich_with_grant_title(self, app: Application) -> None:
         try:
@@ -123,7 +120,6 @@ class ApplicationService:
         self._enrich_with_answers(app)
         self._enrich_with_user_info(app)
 
-    # ── CRUD ──────────────────────────────────
 
     def create_application(self, data: ApplicationCreate, user: dict) -> Application:
         try:
@@ -406,7 +402,6 @@ class ApplicationService:
         self._enrich(app)
         return app
 
-    # ── Private helpers ───────────────────────
 
     def _auto_assign_commissioner(self, app: Application) -> None:
         try:
@@ -469,7 +464,6 @@ class ApplicationService:
             print(f"[auto-assign] dështoi: {e}")
 
 
-# ── Module-level helpers për backward compat me routers ──────────────────────
 
 def find_schema_for_application(application_id: str, db: Session) -> str:
     return ApplicationService(db).find_schema_for_application(application_id)

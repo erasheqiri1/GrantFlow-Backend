@@ -6,7 +6,6 @@ from app.core.database import SessionLocal
 import jwt
 from app.core.config import settings
 
-# Lejon vetëm slug-e të formuara si: abc, abc-def, abc123
 _SLUG_RE = re.compile(r'^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$')
 
 
@@ -52,7 +51,6 @@ class TenantMiddleware(BaseHTTPMiddleware):
 
             if tenant_slug:
 
-                # Validim sigurie: refuzo slug-e me karaktere të dyshimta
                 if not _SLUG_RE.match(tenant_slug):
                     return await call_next(request)
 

@@ -8,13 +8,11 @@ from app.core.ai_client import get_ai_client
 
 
 class ChatService:
-    """Shërbimi për chatbot-in AI të GrantFlow."""
 
     def __init__(self, db: Session):
         self.db = db
 
     def _get_applicant_profile(self, user_id: str) -> str:
-        """Merr profilin e aplikantit nga DB dhe e kthen si tekst për AI."""
         profile = self.db.query(ApplicantProfile).filter(
             ApplicantProfile.user_id == user_id
         ).first()
@@ -56,7 +54,6 @@ class ChatService:
         return "\n".join(lines) if lines else "Profil i paplotësuar."
 
     def _get_published_grants(self) -> str:
-        """Merr të gjitha grantet PUBLISHED nga të gjitha organizatat."""
         tenants = self.db.query(Tenant).filter(Tenant.status == TenantStatus.ACTIVE).all()
         now = datetime.now(timezone.utc)
         grants = []
@@ -98,7 +95,6 @@ class ChatService:
         return "\n".join(grants)
 
     def chat(self, user_id: str, message: str, history: list = None) -> str:
-        """Thirr AI me kontekstin e aplikantit, historikun e bisedës dhe grantet e disponueshme."""
         client, model = get_ai_client()
         if not client:
             raise HTTPException(

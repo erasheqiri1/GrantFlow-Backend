@@ -14,7 +14,6 @@ class PaymentResponse(BaseModel):
     note: Optional[str] = None
     created_at: datetime
 
-    # Info shtesë për frontend
     applicant_name: Optional[str] = None
     applicant_email: Optional[str] = None
     applicant_iban: Optional[str] = None
@@ -25,8 +24,8 @@ class PaymentResponse(BaseModel):
 
 
 class MarkPaidRequest(BaseModel):
-    reference: Optional[str] = None   # referenca bankare
-    note: Optional[str] = None        # shënim opsional
+    reference: Optional[str] = None
+    note: Optional[str] = None
 
 
 class PaginatedPaymentResponse(BaseModel):

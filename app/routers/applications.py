@@ -25,7 +25,7 @@ class AssignRequest(BaseModel):
     commissioner_id: str
 
 UPLOAD_DIR = "uploads/attachments"
-MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
+MAX_FILE_SIZE = 5 * 1024 * 1024
 ALLOWED_TYPES = {
     "application/pdf",
     "image/jpeg", "image/jpg", "image/png",
@@ -64,8 +64,6 @@ def create_application(
     data: ApplicationCreate,
     user=Depends(require_permission("applications:submit")),
 ):
-    """Sistemi vetë e gjen tenant-in nga grant_id — aplikanti nuk duhet të dijë."""
-    # hap sesion publik për të gjetur schemën
     db = SessionLocal()
     try:
         svc = ApplicationService(db)
@@ -116,7 +114,7 @@ def get_my_applications(
 
         total = 0
         all_items = []
-        fetch_limit = page * size  # mjafton vetëm kaq për të llogaritur faqen e kërkuar
+        fetch_limit = page * size
 
         for schema_name in schemas:
             db2 = SessionLocal()
@@ -128,7 +126,6 @@ def get_my_applications(
             finally:
                 db2.close()
 
-        # Rirendit rezultatet e bashkuara nga skemat e ndryshme
         reverse = sortDir == "desc"
         attr_map = {"created_at": "created_at", "submitted_at": "submitted_at", "status": "status"}
         attr = attr_map.get(sortBy, "created_at")
@@ -311,16 +308,13 @@ async def upload_attachment(
     file: UploadFile = File(...),
     user=Depends(require_permission("applications:submit")),
 ):
-    """Ngarko dokument mbështetës për aplikimin (PDF, JPG, PNG, DOC — max 5 MB)."""
 
-    # Kontrollo llojin e skedarit
     if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(
             status_code=415,
             detail="Lloji i skedarit nuk lejohet. Lejohen: PDF, JPG, PNG, DOC, DOCX"
         )
 
-    # Lexo skedarin dhe kontrollo madhësinë
     contents = await file.read()
     if len(contents) > MAX_FILE_SIZE:
         raise HTTPException(
@@ -328,10 +322,8 @@ async def upload_attachment(
             detail="Skedari është shumë i madh. Maksimumi është 5 MB."
         )
 
-    # Kontrollo magic bytes — parandalon fshehjen e skedarëve të rrezikshëm
     validate_magic_bytes(contents, file.content_type)
 
-    # Ruaj skedarin në disk me emër unik
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     ext = os.path.splitext(file.filename or "doc")[1] or ".bin"
     unique_name = f"{uuid.uuid4()}{ext}"
@@ -339,14 +331,12 @@ async def upload_attachment(
     with open(file_path, "wb") as f:
         f.write(contents)
 
-    # Gjej schemën dhe ruaj në DB
     pub_db = SessionLocal()
     try:
         svc = ApplicationService(pub_db)
         schema_name = svc.find_schema_for_application(application_id)
         pub_db.execute(text(f'SET search_path TO "{schema_name}", public'))
 
-        # Kontrollo që aplikimi i takon userit
         application = svc.get_application(application_id)
         if str(application.user_id) != user["user_id"]:
             os.remove(file_path)
@@ -391,11 +381,9 @@ def assign_application(
     user=Depends(require_permission("users:assign_role")),
     db: Session = Depends(get_tenant_db),
 ):
-    """ORG_ADMIN cakton komisionerin për një aplikim."""
     return ApplicationService(db).assign_application(application_id, data.commissioner_id)
 
 
-# Aprovimi/refuzimi bëhet automatikisht nga finalize_grant() pas deadline + vlerësimit komisioner.
 
 
 @router.get(
@@ -421,14 +409,12 @@ def get_attachments(
     application_id: str,
     user=Depends(get_current_user),
 ):
-    """Funkaioni merr listën e dokumenteve të ngarkuara për aplikimin."""
     pub_db = SessionLocal()
     try:
         svc = ApplicationService(pub_db)
         schema_name = svc.find_schema_for_application(application_id)
         pub_db.execute(text(f'SET search_path TO "{schema_name}", public'))
         application = svc.get_application(application_id)
-        # Vetëm pronari ose reviewer mund të shohë dokumentet
         if user["role"] == "APPLICANT" and str(application.user_id) != user["user_id"]:
             raise HTTPException(status_code=403, detail="Nuk ke leje")
         return svc.get_attachments(application_id)
@@ -461,21 +447,18 @@ def score_application(
     application_id: str,
     user=Depends(require_permission("applications:read_all")),
 ):
-    """Nis vlerësimin AI në background (Celery). Kthen 202 menjëherë."""
     pub_db = SessionLocal()
     try:
         app_svc = ApplicationService(pub_db)
         schema_name = app_svc.find_schema_for_application(application_id)
         pub_db.execute(text(f'SET search_path TO "{schema_name}", public'))
 
-        # Nëse ka cache — kthe direkt
         existing = AIScoreService(pub_db).get_score(application_id)
         if existing and existing.ai_score is not None:
             existing.is_cached = True
             pub_db.commit()
             return {"status": "cached", "message": "Score ekziston tashmë"}
 
-        # Queue Celery task — AI punon në background
         from app.tasks.ai_tasks import score_application_task
         score_application_task.delay(application_id, schema_name)
         return {"status": "processing", "message": "Vlerësimi AI u nis. Rifresko pas 5 sekondash."}
@@ -505,7 +488,6 @@ def get_score(
     application_id: str,
     user=Depends(require_permission("applications:read_all")),
 ):
-    """Merr rezultatin e AI për aplikimin (pollon derisa të jetë gati)."""
     pub_db = SessionLocal()
     try:
         schema_name = ApplicationService(pub_db).find_schema_for_application(application_id)
@@ -542,7 +524,6 @@ def submit_commissioner_score(
     data: CommissionerScoreRequest,
     user=Depends(require_permission("applications:read_all")),
 ):
-    """Komisioner ose ORG_ADMIN jep pikët (0-100). Rillogarit final_score."""
     pub_db = SessionLocal()
     try:
         schema_name = ApplicationService(pub_db).find_schema_for_application(application_id)

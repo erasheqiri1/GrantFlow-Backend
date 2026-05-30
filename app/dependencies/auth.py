@@ -54,7 +54,6 @@ def require_permission(permission_codename: str):
 
         db = SessionLocal()
         try:
-            # Kontrollo nëse llogaria është aktive
             try:
                 uid = _uuid.UUID(user_id)
                 user_obj = db.query(User).filter_by(id=uid).first()
@@ -63,7 +62,7 @@ def require_permission(permission_codename: str):
             except HTTPException:
                 raise
             except Exception:
-                pass  # Nëse dështon UUID-ja, vazhdo — auth middleware e ka kontrolluar
+                pass
 
             role = db.query(Role).filter_by(name=role_name).first()
             if not role:

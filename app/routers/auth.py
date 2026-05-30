@@ -1,4 +1,3 @@
-# app/routers/auth.py
 
 import os
 import time
@@ -32,19 +31,16 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 
 @router.post("/register", response_model=MessageResponse, status_code=201)
 def register(data: RegisterRequest, db: Session = Depends(get_db)):
-    """Regjistrim i aplikantit të ri — dërgon email verifikimi."""
     return AuthService(db).register_user(data)
 
 
 @router.post("/register-org", response_model=MessageResponse, status_code=202)
 def register_org(data: RegisterOrgRequest, db: Session = Depends(get_db)):
-    """Regjistrim i organizatës së re + ORG_ADMIN. Pret aprovimin nga Super Admin."""
     return AuthService(db).register_org(data)
 
 
 @router.post("/login", response_model=TokenResponse, status_code=200)
 def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
-    """Login — kthen JWT token. Max 3 tentativa/minutë për IP."""
     client_ip = (request.client.host if request.client else "unknown")
     if not rate_limit_check(f"rl:login:{client_ip}", 3, 60):
         raise HTTPException(status_code=429, detail="Shumë tentativa. Provo pas 1 minutë.")
@@ -53,7 +49,6 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
 
 @router.post("/logout", response_model=MessageResponse, status_code=200)
 def logout(request: Request, data: LogoutRequest = LogoutRequest(), db: Session = Depends(get_db)):
-    """Invalido access token-in + revoko refresh token-in."""
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
@@ -70,13 +65,11 @@ def logout(request: Request, data: LogoutRequest = LogoutRequest(), db: Session 
 
 @router.post("/refresh", response_model=TokenResponse, status_code=200)
 def refresh(data: RefreshRequest, db: Session = Depends(get_db)):
-    """Merr access token të ri duke përdorur refresh token."""
     return AuthService(db).refresh_access_token(data.refresh_token)
 
 
 @router.post("/forgot-password", response_model=MessageResponse, status_code=202)
 def forgot_password(request: Request, data: ForgotPasswordRequest, db: Session = Depends(get_db)):
-    """Kërko reset të fjalëkalimit. Max 5 tentativa/minutë për IP."""
     client_ip = (request.client.host if request.client else "unknown")
     if not rate_limit_check(f"rl:forgot:{client_ip}", 5, 60):
         raise HTTPException(status_code=429, detail="Shumë tentativa. Provo pas 1 minutë.")
@@ -85,7 +78,6 @@ def forgot_password(request: Request, data: ForgotPasswordRequest, db: Session =
 
 @router.post("/reset-password", response_model=MessageResponse, status_code=200)
 def reset_password(data: ResetPasswordRequest, db: Session = Depends(get_db)):
-    """Ndrysho fjalëkalimin me token."""
     return AuthService(db).reset_password(data)
 
 
@@ -114,7 +106,7 @@ async def upload_org_doc(
     db: Session = Depends(get_db),
 ):
     ALLOWED = {"application/pdf", "image/jpeg", "image/png"}
-    MAX_SIZE = 5 * 1024 * 1024  # 5 MB
+    MAX_SIZE = 5 * 1024 * 1024
 
     if file.content_type not in ALLOWED:
         raise HTTPException(status_code=415, detail="Lejohen vetëm PDF, JPG, PNG")
@@ -123,7 +115,6 @@ async def upload_org_doc(
     if len(contents) > MAX_SIZE:
         raise HTTPException(status_code=413, detail="Skedari është shumë i madh (max 5 MB)")
 
-    # Kontrollo magic bytes — parandalon fshehjen e skedarëve të rrezikshëm
     validate_magic_bytes(contents, file.content_type)
 
     tenant = db.query(Tenant).filter(Tenant.slug == org_slug).first()
@@ -147,11 +138,9 @@ async def upload_org_doc(
 
 @router.get("/verify-email", response_model=MessageResponse, status_code=200)
 def verify_email(token: str, db: Session = Depends(get_db)):
-    """Konfirmo emailin me token të dërguar gjatë regjistrimit."""
     return AuthService(db).verify_email(token)
 
 
 @router.post("/invite/accept", response_model=TokenResponse, status_code=201)
 def accept_invite(data: InviteAcceptRequest, db: Session = Depends(get_db)):
-    """Personi i ftuar pranon ftesën dhe krijon llogarinë."""
     return AuthService(db).accept_invite(data)

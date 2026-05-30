@@ -8,7 +8,6 @@ from sqlalchemy import text
 
 
 class AuditService:
-    """Shërbimi për logging dhe auditim të veprimeve."""
 
     def __init__(self, db: Session):
         self.db = db
@@ -131,5 +130,4 @@ class AuditService:
             db.close()
 
 
-# Alias për backward compatibility — thirret nga shërbime të tjera
 log_action = AuditService.log_action

@@ -10,7 +10,6 @@ from app.services.audit import log_action
 
 
 class GrantService:
-    """Shërbimi për menaxhimin e granteve."""
 
     def __init__(self, db: Session):
         self.db = db

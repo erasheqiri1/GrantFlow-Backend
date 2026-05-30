@@ -101,4 +101,4 @@ class AIScoreResponse(BaseModel):
 
 
 class CommissionerScoreRequest(BaseModel):
-    score: float  # 0-100
+    score: float

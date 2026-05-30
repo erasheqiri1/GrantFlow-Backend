@@ -8,13 +8,11 @@ from app.schemas.payments import MarkPaidRequest
 
 
 class PaymentService:
-    """Shërbimi për menaxhimin e pagesave."""
 
     def __init__(self, db: Session):
         self.db = db
 
     def _to_response(self, payment: Payment) -> dict:
-        """Kthen payment me info shtesë për aplikantin dhe grantin."""
         applicant_name  = None
         applicant_email = None
         applicant_iban  = None
@@ -60,7 +58,6 @@ class PaymentService:
         }
 
     def create_payment_for_application(self, application_id, amount, currency: str) -> Payment:
-        """Krijohet automatikisht nga finalize_grant() për çdo aplikim APPROVED."""
         existing = self.db.query(Payment).filter(Payment.application_id == application_id).first()
         if existing:
             return existing
@@ -76,7 +73,6 @@ class PaymentService:
         return payment
 
     def get_payments(self, status: str = None, page: int = 1, size: int = 20) -> dict:
-        """Lista e pagesave për organizatën (ORG_ADMIN)."""
         query = self.db.query(Payment)
         if status:
             query = query.filter(Payment.status == status)
@@ -93,7 +89,6 @@ class PaymentService:
         }
 
     def get_payment_by_application(self, application_id: str) -> dict:
-        """Merr pagesën e një aplikimi specifik."""
         payment = self.db.query(Payment).filter(
             Payment.application_id == application_id
         ).first()
@@ -102,7 +97,6 @@ class PaymentService:
         return self._to_response(payment)
 
     def mark_as_paid(self, application_id: str, data: MarkPaidRequest, user: dict) -> dict:
-        """ORG_ADMIN shënon pagesën si të kryer."""
         payment = self.db.query(Payment).filter(
             Payment.application_id == application_id
         ).with_for_update().first()

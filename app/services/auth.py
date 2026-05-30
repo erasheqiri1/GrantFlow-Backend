@@ -19,12 +19,10 @@ from app.schemas.auth import (
 
 
 class AuthService:
-    """Shërbimi për autentikim dhe autorizim."""
 
     def __init__(self, db: Session):
         self.db = db
 
-    # ── Helpers statike ───────────────────────
 
     @staticmethod
     def hash_password(password: str) -> str:
@@ -97,7 +95,6 @@ class AuthService:
             tenant_slug=db_token.tenant_slug,
         )
 
-    # ── Register ──────────────────────────────
 
     def register_user(self, data: RegisterRequest) -> dict:
         existing = self.db.query(User).filter(User.email == data.email).first()
@@ -220,7 +217,6 @@ class AuthService:
             return {"message": "Email u konfirmua! Prisni aprovimin nga administratori para se të kyçeni."}
         return {"message": "Email u konfirmua me sukses. Tani mund të kyçeni."}
 
-    # ── Login ─────────────────────────────────
 
     def login_user(self, data: LoginRequest) -> TokenResponse:
         user = self.db.query(User).filter(User.email == data.email).first()
@@ -292,7 +288,6 @@ class AuthService:
             tenant_slug=tenant_slug_for_token,
         )
 
-    # ── Forgot / Reset Password ───────────────
 
     def forgot_password(self, data: ForgotPasswordRequest) -> dict:
         user = self.db.query(User).filter(User.email == data.email).first()
@@ -336,7 +331,6 @@ class AuthService:
         self.db.commit()
         return {"message": "Fjalëkalimi u ndryshua me sukses"}
 
-    # ── Accept Invite ─────────────────────────
 
     def accept_invite(self, data: InviteAcceptRequest) -> TokenResponse:
         try:
@@ -392,7 +386,6 @@ class AuthService:
         )
 
 
-# Alias-et për testet — eksportojnë static methods si funksione të lira
 hash_password   = AuthService.hash_password
 verify_password = AuthService.verify_password
 create_token    = AuthService.create_token

@@ -9,12 +9,10 @@ from app.models.tenant.models import (
 )
 from app.core.ai_client import get_ai_client
 
-# Alias për backward compatibility me testet (pjesa tjetër shtohet pas klasës)
 _get_client = get_ai_client
 
 
 class AIScoreService:
-    """Shërbimi për vlerësimin AI të aplikimeve."""
 
     def __init__(self, db: Session):
         self.db = db
@@ -74,7 +72,6 @@ class AIScoreService:
         return "\n".join(lines)
 
     def score_application(self, application_id: str) -> AIScore:
-        """Vlerëson një aplikim me AI dhe ruan rezultatin në tabelën ai_scores."""
         import uuid
         try:
             aid = uuid.UUID(application_id)
@@ -282,10 +279,8 @@ class AIScoreService:
         return self.db.query(AIScore).filter(AIScore.application_id == aid).first()
 
 
-# Alias pas klasës — për backward compatibility me testet dhe Celery tasks
 _build_prompt = AIScoreService._build_prompt
 
 
 def score_application(application_id: str, db) -> AIScore:
-    """Wrapper funksion për Celery task — thirr AIScoreService.score_application."""
     return AIScoreService(db).score_application(application_id)

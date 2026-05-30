@@ -45,7 +45,6 @@ class GrantUpdate(BaseModel):
 
 
 class QuestionInGrant(BaseModel):
-    """Pyetjet e grantit shfaqen kur aplikanti shikon grantin."""
     id:            UUID
     question_text: str
     question_type: str

@@ -211,10 +211,6 @@ CREATE TABLE IF NOT EXISTS "{schema}".payments (
 
 
 def create_tenant_schema(db: Session, tenant_slug: str) -> None:
-    """
-    Krijon schemën dhe 16 tabelat për tenant të ri.
-    Thirret kur SUPER_ADMIN aprovo organizatën.
-    """
     schema_name = f"tenant_{tenant_slug.replace('-', '_')}"
     db.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema_name}"'))
     db.commit()
@@ -229,7 +225,6 @@ def create_tenant_schema(db: Session, tenant_slug: str) -> None:
 
 
 def drop_tenant_schema(db: Session, tenant_slug: str) -> None:
-    """Fshin schemën — vetëm për test/dev."""
     schema_name = f"tenant_{tenant_slug.replace('-', '_')}"
     db.execute(text(f'DROP SCHEMA IF EXISTS "{schema_name}" CASCADE'))
     db.commit()
@@ -237,5 +232,4 @@ def drop_tenant_schema(db: Session, tenant_slug: str) -> None:
 
 
 def set_tenant_search_path(db: Session, tenant_slug: str) -> None:
-    """Vendos search_path — thirret nga middleware per çdo request."""
     db.execute(text(f'SET search_path TO "{tenant_slug}", public'))
