@@ -43,7 +43,7 @@ Authorization: Bearer <access_token>
 | `APPLICANT` | Aplikon për grante |
 
 ### Rate Limiting
-- Login: **10 tentativa / minutë** për IP
+- Login: **3 tentativa / minutë** për IP
 - Forgot Password: **5 tentativa / minutë** për IP
 
 ### Variablat e mjedisit (`.env`)

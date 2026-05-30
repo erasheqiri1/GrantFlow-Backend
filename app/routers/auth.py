@@ -44,9 +44,9 @@ def register_org(data: RegisterOrgRequest, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse, status_code=200)
 def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
-    """Login — kthen JWT token. Max 10 tentativa/minutë për IP."""
+    """Login — kthen JWT token. Max 3 tentativa/minutë për IP."""
     client_ip = (request.client.host if request.client else "unknown")
-    if not rate_limit_check(f"rl:login:{client_ip}", 10, 60):
+    if not rate_limit_check(f"rl:login:{client_ip}", 3, 60):
         raise HTTPException(status_code=429, detail="Shumë tentativa. Provo pas 1 minutë.")
     return AuthService(db).login_user(data)
 
