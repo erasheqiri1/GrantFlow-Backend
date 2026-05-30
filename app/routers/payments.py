@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Query, Request, HTTPException
 
 from app.dependencies.auth import get_tenant_db, require_permission
 from app.schemas.payments import PaymentResponse, MarkPaidRequest, PaginatedPaymentResponse
-from app.services import payments as payment_service
+from app.services.payments import PaymentService
 from app.core.database import SessionLocal
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -35,7 +35,7 @@ def list_payments(
     user=Depends(require_permission("grants:update")),
     db: Session = Depends(get_tenant_db),
 ):
-    return payment_service.get_payments(db, status, page, size)
+    return PaymentService(db).get_payments(status, page, size)
 
 
 @router.get(
@@ -60,7 +60,7 @@ def get_payment(
     user=Depends(require_permission("grants:update")),
     db: Session = Depends(get_tenant_db),
 ):
-    return payment_service.get_payment_by_application(application_id, db)
+    return PaymentService(db).get_payment_by_application(application_id)
 
 
 @router.get(
@@ -112,13 +112,13 @@ def get_my_payment(
             raise HTTPException(status_code=403, detail="Ky aplikim nuk është yti")
 
         # 3. Merr pagesën
-        return payment_service.get_payment_by_application(application_id, pub_db)
+        return PaymentService(pub_db).get_payment_by_application(application_id)
     finally:
         pub_db.close()
 
 
 @router.patch(
-    "/application/{application_id}/mark-paid",
+    "/application/{application_id}",
     response_model=PaymentResponse,
     summary="Shëno pagesën si të kryer",
     description="""
@@ -146,4 +146,4 @@ def mark_paid(
     user=Depends(require_permission("grants:update")),
     db: Session = Depends(get_tenant_db),
 ):
-    return payment_service.mark_as_paid(application_id, data, user, db)
+    return PaymentService(db).mark_as_paid(application_id, data, user)

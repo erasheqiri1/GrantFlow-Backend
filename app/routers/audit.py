@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.dependencies.auth import require_permission
-from app.services import audit as audit_service
+from app.services.audit import AuditService
 
 router = APIRouter(prefix="/audit-logs", tags=["Audit"])
 
@@ -41,8 +41,7 @@ def get_audit_logs(
     db: Session = Depends(get_db),
     _: dict     = Depends(require_permission("audit:read")),
 ):
-    return audit_service.get_audit_logs(
-        db=db,
+    return AuditService(db).get_audit_logs(
         action=action,
         tenant_id=tenant_id,
         from_date=from_date,

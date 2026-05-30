@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.dependencies.auth import require_permission
-from app.services import chatbot as chatbot_service
+from app.services.chatbot import ChatService
 
 router = APIRouter(prefix="/chatbot", tags=["Chatbot"])
 
@@ -34,10 +34,9 @@ def chat(
     if not data.message or not data.message.strip():
         return ChatResponse(reply="Shkruaj diçka që të mund të të ndihmoj.")
 
-    reply = chatbot_service.chat(
+    reply = ChatService(db).chat(
         user["user_id"],
         data.message.strip(),
-        db,
         history=[{"role": h.role, "text": h.text} for h in data.history],
     )
     return ChatResponse(reply=reply)

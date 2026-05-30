@@ -1,12 +1,13 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.dependencies.auth import require_permission
 from app.schemas.tenants import TenantListResponse
-from app.services import tenants as tenant_service
+from app.services.tenants import TenantService
 
 router = APIRouter(prefix="/tenants", tags=["Tenants"])
 
@@ -20,7 +21,7 @@ router = APIRouter(prefix="/tenants", tags=["Tenants"])
     },
 )
 def public_platform_stats(db: Session = Depends(get_db)):
-    return tenant_service.get_platform_stats(db)
+    return TenantService(db).get_platform_stats()
 
 
 @router.get(
@@ -41,7 +42,7 @@ def platform_stats(
     db: Session = Depends(get_db),
     _: dict = Depends(require_permission("tenants:read")),
 ):
-    return tenant_service.get_platform_stats(db)
+    return TenantService(db).get_platform_stats()
 
 
 @router.get(
@@ -70,52 +71,42 @@ def list_tenants(
     db: Session = Depends(get_db),
     _: dict = Depends(require_permission("tenants:read")),
 ):
-    return tenant_service.get_tenants(db, status, sortBy, sortDir, page, size)
+    return TenantService(db).get_tenants(status, sortBy, sortDir, page, size)
+
+
+class TenantStatusUpdate(BaseModel):
+    status: str
 
 
 @router.patch(
-    "/{tenant_id}/approve",
-    summary="Aprovo organizatën",
+    "/{tenant_id}/status",
+    summary="Ndrysho statusin e organizatës",
     description="""
-Aprovon një organizatë në pritje dhe krijon schemën e saj në PostgreSQL.
+Ndryshon statusin e një organizate.
 
 **Kërkon rolin:** `SUPER_ADMIN`
 
-Pas aprovimit, ORG_ADMIN i organizatës mund të kyçet dhe të menaxhojë grantet.
+Vlerat e lejuara për `status`:
+- `APPROVED` — aprovo organizatën
+- `REJECTED` — refuzo organizatën
 """,
     responses={
-        200: {"description": "Organizatë e aprovuar"},
+        200: {"description": "Statusi i ndryshuar me sukses"},
+        400: {"description": "Status i pavlefshëm"},
         401: {"description": "Token mungon ose i pavlefshëm"},
         403: {"description": "Nuk ke leje — kërkohet SUPER_ADMIN"},
         404: {"description": "Organizata nuk u gjet"},
     },
 )
-def approve_tenant(
+def update_tenant_status(
     tenant_id: str,
+    data: TenantStatusUpdate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("tenants:approve")),
 ):
-    return tenant_service.approve_tenant(db, tenant_id, current_user["user_id"])
-
-
-@router.patch(
-    "/{tenant_id}/reject",
-    summary="Refuzo organizatën",
-    description="""
-Refuzon një organizatë në pritje.
-
-**Kërkon rolin:** `SUPER_ADMIN`
-""",
-    responses={
-        200: {"description": "Organizatë e refuzuar"},
-        401: {"description": "Token mungon ose i pavlefshëm"},
-        403: {"description": "Nuk ke leje — kërkohet SUPER_ADMIN"},
-        404: {"description": "Organizata nuk u gjet"},
-    },
-)
-def reject_tenant(
-    tenant_id: str,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("tenants:reject")),
-):
-    return tenant_service.reject_tenant(db, tenant_id, current_user["user_id"])
+    svc = TenantService(db)
+    if data.status == "APPROVED":
+        return svc.approve_tenant(tenant_id, current_user["user_id"])
+    elif data.status == "REJECTED":
+        return svc.reject_tenant(tenant_id, current_user["user_id"])
+    raise HTTPException(status_code=400, detail="Status i pavlefshëm. Lejohet: APPROVED, REJECTED")

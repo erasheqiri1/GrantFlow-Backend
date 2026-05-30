@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.dependencies.auth import require_permission, get_tenant_db
 from app.schemas.team import InviteRequest, TeamMemberResponse, PaginatedTeamResponse
-from app.services import team as team_service
+from app.services.team import TeamService
 
 router = APIRouter(tags=["Team"])
 
@@ -32,7 +32,7 @@ def invite_member(
     current_user: dict = Depends(require_permission("invitations:send")),
     db: Session = Depends(get_tenant_db),
 ):
-    return team_service.send_invite(data, current_user, db)
+    return TeamService(db).send_invite(data, current_user)
 
 
 @router.get(
@@ -60,7 +60,7 @@ def get_team(
     current_user: dict = Depends(require_permission("team:read")),
     db: Session = Depends(get_tenant_db),
 ):
-    return team_service.get_team(current_user, db, sortBy, sortDir, page, size)
+    return TeamService(db).get_team(current_user, sortBy, sortDir, page, size)
 
 
 @router.delete(
@@ -86,5 +86,5 @@ def remove_member(
     current_user: dict = Depends(require_permission("team:manage")),
     db: Session = Depends(get_tenant_db),
 ):
-    team_service.remove_member(member_id, current_user, db)
+    TeamService(db).remove_member(member_id, current_user)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

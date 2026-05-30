@@ -13,7 +13,8 @@ from app.schemas.applications import (
     AttachmentResponse, AIScoreResponse, CommissionerScoreRequest,
     PaginatedApplicationResponse,
 )
-from app.services import ai_scoring
+from app.services.ai_scoring import AIScoreService
+from app.services.applications import ApplicationService
 from pydantic import BaseModel
 from typing import Optional as Opt
 
@@ -22,8 +23,6 @@ class DecisionRequest(BaseModel):
 
 class AssignRequest(BaseModel):
     commissioner_id: str
-
-from app.services import applications as app_service
 
 UPLOAD_DIR = "uploads/attachments"
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
@@ -69,9 +68,10 @@ def create_application(
     # hap sesion publik për të gjetur schemën
     db = SessionLocal()
     try:
-        schema_name = app_service.find_schema_for_grant(data.grant_id, db)
+        svc = ApplicationService(db)
+        schema_name = svc.find_schema_for_grant(data.grant_id)
         db.execute(text(f'SET search_path TO "{schema_name}", public'))
-        return app_service.create_application(data, user, db)
+        return svc.create_application(data, user)
     finally:
         db.close()
 
@@ -108,9 +108,9 @@ def get_my_applications(
         if slug:
             schema_name = f"tenant_{slug.replace('-', '_')}"
             pub_db.execute(text(f'SET search_path TO "{schema_name}", public'))
-            return app_service.get_my_applications(user, pub_db, sortBy, sortDir, page, size, status)
+            return ApplicationService(pub_db).get_my_applications(user, sortBy, sortDir, page, size, status)
 
-        schemas = app_service.find_schemas_for_user(user["user_id"], pub_db)
+        schemas = ApplicationService(pub_db).find_schemas_for_user(user["user_id"])
         if not schemas:
             return {"total": 0, "page": page, "size": size, "items": []}
 
@@ -122,7 +122,7 @@ def get_my_applications(
             db2 = SessionLocal()
             try:
                 db2.execute(text(f'SET search_path TO "{schema_name}", public'))
-                result = app_service.get_my_applications(user, db2, sortBy, sortDir, 1, fetch_limit, status)
+                result = ApplicationService(db2).get_my_applications(user, sortBy, sortDir, 1, fetch_limit, status)
                 total += result["total"]
                 all_items.extend(result["items"])
             finally:
@@ -148,40 +148,58 @@ def update_application(
 ):
     pub_db = SessionLocal()
     try:
-        schema_name = app_service.find_schema_for_application(application_id, pub_db)
+        svc = ApplicationService(pub_db)
+        schema_name = svc.find_schema_for_application(application_id)
         pub_db.execute(text(f'SET search_path TO "{schema_name}", public'))
-        return app_service.update_application(application_id, data, user, pub_db)
+        return svc.update_application(application_id, data, user)
     finally:
         pub_db.close()
 
 
-@router.post(
-    "/{application_id}/submit",
+class ApplicationStatusUpdate(BaseModel):
+    status: str
+
+
+@router.patch(
+    "/{application_id}/status",
     response_model=ApplicationResponse,
-    summary="Dorëzo aplikimin",
+    summary="Ndrysho statusin e aplikimit",
     description="""
-Ndryshon statusin e aplikimit nga **DRAFT** në **SUBMITTED**.
+Ndryshon statusin e aplikimit.
 
-**Kërkon rolin:** `APPLICANT`
-
-Pas dorëzimit, aplikimi nuk mund të modifikohet më.
+Vlerat e lejuara për `status`:
+- `SUBMITTED` — dorëzon aplikimin (`APPLICANT`)
+- `UNDER_REVIEW` — nis shqyrtimin (`ORG_ADMIN` / `COMMISSIONER`)
 """,
     responses={
-        200: {"description": "Aplikim i dorëzuar (status: SUBMITTED)"},
+        200: {"description": "Statusi i ndryshuar me sukses"},
+        400: {"description": "Status i pavlefshëm"},
         401: {"description": "Token mungon ose i pavlefshëm"},
-        403: {"description": "Nuk ke leje ose aplikimi nuk është i juaji"},
+        403: {"description": "Nuk ke leje"},
         404: {"description": "Aplikimi nuk u gjet"},
     },
 )
-def submit_application(
+def update_application_status(
     application_id: str,
-    user=Depends(require_permission("applications:submit")),
+    data: ApplicationStatusUpdate,
+    request: Request,
+    user=Depends(get_current_user),
 ):
+    role = getattr(request.state, "role", None)
     pub_db = SessionLocal()
     try:
-        schema_name = app_service.find_schema_for_application(application_id, pub_db)
+        svc = ApplicationService(pub_db)
+        schema_name = svc.find_schema_for_application(application_id)
         pub_db.execute(text(f'SET search_path TO "{schema_name}", public'))
-        return app_service.submit_application(application_id, user, pub_db)
+        if data.status == "SUBMITTED":
+            if role != "APPLICANT":
+                raise HTTPException(status_code=403, detail="Nuk ke leje — kërkohet APPLICANT")
+            return svc.submit_application(application_id, user)
+        elif data.status == "UNDER_REVIEW":
+            if role not in ("ORG_ADMIN", "COMMISSIONER", "SUPER_ADMIN"):
+                raise HTTPException(status_code=403, detail="Nuk ke leje — kërkohet ORG_ADMIN ose COMMISSIONER")
+            return svc.start_review(application_id, user)
+        raise HTTPException(status_code=400, detail="Status i pavlefshëm. Lejohet: SUBMITTED, UNDER_REVIEW")
     finally:
         pub_db.close()
 
@@ -214,7 +232,7 @@ def get_all_applications(
     user=Depends(require_permission("applications:read_all")),
     db: Session = Depends(get_tenant_db),
 ):
-    return app_service.get_all_applications(db, grant_id, status, assigned_to, sortBy, sortDir, page, size)
+    return ApplicationService(db).get_all_applications(grant_id, status, assigned_to, sortBy, sortDir, page, size)
 
 
 @router.get(
@@ -242,9 +260,10 @@ def get_application(
 ):
     pub_db = SessionLocal()
     try:
-        schema_name = app_service.find_schema_for_application(application_id, pub_db)
+        svc = ApplicationService(pub_db)
+        schema_name = svc.find_schema_for_application(application_id)
         pub_db.execute(text(f'SET search_path TO "{schema_name}", public'))
-        application = app_service.get_application(application_id, pub_db)
+        application = svc.get_application(application_id)
         if user["role"] == "APPLICANT" and str(application.user_id) != user["user_id"]:
             raise HTTPException(status_code=403, detail="Nuk ke leje")
         return application
@@ -289,22 +308,22 @@ async def upload_attachment(
     # Gjej schemën dhe ruaj në DB
     pub_db = SessionLocal()
     try:
-        schema_name = app_service.find_schema_for_application(application_id, pub_db)
+        svc = ApplicationService(pub_db)
+        schema_name = svc.find_schema_for_application(application_id)
         pub_db.execute(text(f'SET search_path TO "{schema_name}", public'))
 
         # Kontrollo që aplikimi i takon userit
-        application = app_service.get_application(application_id, pub_db)
+        application = svc.get_application(application_id)
         if str(application.user_id) != user["user_id"]:
             os.remove(file_path)
             raise HTTPException(status_code=403, detail="Nuk ke leje")
 
-        return app_service.add_attachment(
+        return svc.add_attachment(
             application_id=application_id,
             file_name=file.filename or unique_name,
             file_path=f"/uploads/attachments/{unique_name}",
             file_type=file.content_type,
             size_bytes=len(contents),
-            db=pub_db,
         )
     except HTTPException:
         raise
@@ -316,29 +335,15 @@ async def upload_attachment(
         pub_db.close()
 
 
-@router.patch("/{application_id}/assign", response_model=ApplicationResponse)
+@router.patch("/{application_id}/commissioner", response_model=ApplicationResponse)
 def assign_application(
     application_id: str,
     data: AssignRequest,
     user=Depends(require_permission("users:assign_role")),
     db: Session = Depends(get_tenant_db),
 ):
-    """ORG_ADMIN ricakton komisionerin për një aplikim."""
-    return app_service.assign_application(application_id, data.commissioner_id, db)
-
-
-@router.patch("/{application_id}/start-review", response_model=ApplicationResponse)
-def start_review(
-    application_id: str,
-    user=Depends(require_permission("applications:read_all")),
-):
-    pub_db = SessionLocal()
-    try:
-        schema_name = app_service.find_schema_for_application(application_id, pub_db)
-        pub_db.execute(text(f'SET search_path TO "{schema_name}", public'))
-        return app_service.start_review(application_id, user, pub_db)
-    finally:
-        pub_db.close()
+    """ORG_ADMIN cakton komisionerin për një aplikim."""
+    return ApplicationService(db).assign_application(application_id, data.commissioner_id)
 
 
 # Aprovimi/refuzimi bëhet automatikisht nga finalize_grant() pas deadline + vlerësimit komisioner.
@@ -352,13 +357,14 @@ def get_attachments(
     """Funkaioni merr listën e dokumenteve të ngarkuara për aplikimin."""
     pub_db = SessionLocal()
     try:
-        schema_name = app_service.find_schema_for_application(application_id, pub_db)
+        svc = ApplicationService(pub_db)
+        schema_name = svc.find_schema_for_application(application_id)
         pub_db.execute(text(f'SET search_path TO "{schema_name}", public'))
-        application = app_service.get_application(application_id, pub_db)
+        application = svc.get_application(application_id)
         # Vetëm pronari ose reviewer mund të shohë dokumentet
         if user["role"] == "APPLICANT" and str(application.user_id) != user["user_id"]:
             raise HTTPException(status_code=403, detail="Nuk ke leje")
-        return app_service.get_attachments(application_id, pub_db)
+        return svc.get_attachments(application_id)
     finally:
         pub_db.close()
 
@@ -371,11 +377,12 @@ def score_application(
     """Nis vlerësimin AI në background (Celery). Kthen 202 menjëherë."""
     pub_db = SessionLocal()
     try:
-        schema_name = app_service.find_schema_for_application(application_id, pub_db)
+        app_svc = ApplicationService(pub_db)
+        schema_name = app_svc.find_schema_for_application(application_id)
         pub_db.execute(text(f'SET search_path TO "{schema_name}", public'))
 
         # Nëse ka cache — kthe direkt
-        existing = ai_scoring.get_score(application_id, pub_db)
+        existing = AIScoreService(pub_db).get_score(application_id)
         if existing and existing.ai_score is not None:
             existing.is_cached = True
             pub_db.commit()
@@ -397,9 +404,9 @@ def get_score(
     """Merr rezultatin e AI për aplikimin (pollon derisa të jetë gati)."""
     pub_db = SessionLocal()
     try:
-        schema_name = app_service.find_schema_for_application(application_id, pub_db)
+        schema_name = ApplicationService(pub_db).find_schema_for_application(application_id)
         pub_db.execute(text(f'SET search_path TO "{schema_name}", public'))
-        score = ai_scoring.get_score(application_id, pub_db)
+        score = AIScoreService(pub_db).get_score(application_id)
         if not score:
             raise HTTPException(status_code=404, detail="Nuk ka vlerësim AI akoma")
         return score
@@ -416,8 +423,8 @@ def submit_commissioner_score(
     """Komisioner ose ORG_ADMIN jep pikët (0-100). Rillogarit final_score."""
     pub_db = SessionLocal()
     try:
-        schema_name = app_service.find_schema_for_application(application_id, pub_db)
+        schema_name = ApplicationService(pub_db).find_schema_for_application(application_id)
         pub_db.execute(text(f'SET search_path TO "{schema_name}", public'))
-        return ai_scoring.set_commissioner_score(application_id, data.score, pub_db)
+        return AIScoreService(pub_db).set_commissioner_score(application_id, data.score)
     finally:
         pub_db.close()

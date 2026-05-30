@@ -1,7 +1,7 @@
 
 import pytest
 from unittest.mock import MagicMock
-from app.services.ai_scoring import _heuristic_score, _build_prompt, _get_client
+from app.services.ai_scoring import _build_prompt, _get_client
 
 
 # ──────────────────────────────────────────────
@@ -34,58 +34,6 @@ def make_grant(title="Grant Test", description="Pershkrim i grantit"):
     return g
 
 
-# ──────────────────────────────────────────────
-# Teste për _heuristic_score
-# ──────────────────────────────────────────────
-class TestHeuristicScore:
-    def test_returns_tuple(self):
-        app = make_app()
-        score, justification = _heuristic_score(app, [], [])
-        assert isinstance(score, float)
-        assert isinstance(justification, str)
-
-    def test_score_between_0_and_100(self):
-        app = make_app()
-        answers = [make_answer("Pergjigje e detajuar per pyetjen.")]
-        criteria = [make_criterion()]
-        score, _ = _heuristic_score(app, answers, criteria)
-        assert 0 <= score <= 100
-
-    def test_longer_motivation_gives_higher_score(self):
-        short_app = make_app("Shpres.")
-        long_app  = make_app("A" * 1000)
-        answers   = []
-        criteria  = []
-
-        short_score, _ = _heuristic_score(short_app, answers, criteria)
-        long_score,  _ = _heuristic_score(long_app,  answers, criteria)
-        assert long_score >= short_score
-
-    def test_no_motivation_letter(self):
-        app = make_app(motivation_letter=None)
-        score, justification = _heuristic_score(app, [], [])
-        assert score >= 0
-        assert "Mungon letra motivuese" in justification
-
-    def test_all_answers_filled_increases_score(self):
-        app_no_ans  = make_app()
-        app_with_ans = make_app()
-        answers = [make_answer("Pergjigje") for _ in range(5)]
-
-        score_no,   _ = _heuristic_score(app_no_ans,  [],      [])
-        score_with, _ = _heuristic_score(app_with_ans, answers, [])
-        assert score_with >= score_no
-
-    def test_empty_answers_dont_crash(self):
-        app = make_app()
-        answers = [make_answer(""), make_answer(None)]
-        score, _ = _heuristic_score(app, answers, [])
-        assert 0 <= score <= 100
-
-    def test_justification_contains_score(self):
-        app = make_app()
-        score, justification = _heuristic_score(app, [], [])
-        assert "heuristike" in justification
 
 
 # ──────────────────────────────────────────────

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.dependencies.auth import require_permission
 from app.schemas.users import UserListResponse, UserDetailResponse
-from app.services import users as users_service
+from app.services.users import UserService
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -50,7 +50,7 @@ def list_users(
     db: Session = Depends(get_db),
     _: dict = Depends(require_permission("users:read")),
 ):
-    return users_service.get_users(db, sortBy, sortDir, page, size, role, is_active)
+    return UserService(db).get_users(sortBy, sortDir, page, size, role, is_active)
 
 
 @router.post(
@@ -69,7 +69,7 @@ Krijon një llogari Super Admin të re direkt.
     },
 )
 def create_super_admin(data: CreateSuperAdminRequest, db: Session = Depends(get_db), _: dict = Depends(require_permission("users:assign_role"))):
-    return users_service.create_super_admin(db, data)
+    return UserService(db).create_super_admin(data)
 
 
 @router.post(
@@ -88,18 +88,22 @@ Dërgon ftesë me email për Super Admin të ri.
     },
 )
 def invite_super_admin(data: InviteSuperAdminRequest, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("users:assign_role"))):
-    return users_service.invite_super_admin(db, data.email, current_user["user_id"])
+    return UserService(db).invite_super_admin(data.email, current_user["user_id"])
+
+
+class UserActiveUpdate(BaseModel):
+    is_active: bool
 
 
 @router.patch(
-    "/{user_id}/toggle-active",
-    summary="Aktivizo / deaktivizo përdorues",
+    "/{user_id}",
+    summary="Përditëso statusin e përdoruesit",
     description="""
-Ndryshon statusin `is_active` të një përdoruesi (aktivizo ose deaktivizo).
+Aktivizon ose deaktivizon llogarinë e një përdoruesi.
 
 **Kërkon rolin:** `SUPER_ADMIN`
 
-Përdoruesi i deaktivizuar nuk mund të kyçet dhe nuk mund të përdorë API-n.
+Dërgo `{"is_active": true}` për aktivizim ose `{"is_active": false}` për deaktivizim.
 """,
     responses={
         200: {"description": "Statusi i ndryshuar"},
@@ -108,8 +112,13 @@ Përdoruesi i deaktivizuar nuk mund të kyçet dhe nuk mund të përdorë API-n.
         404: {"description": "Përdoruesi nuk u gjet"},
     },
 )
-def toggle_user_active(user_id: str, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("users:deactivate"))):
-    return users_service.toggle_user_active(db, user_id, current_user["user_id"])
+def update_user_active(
+    user_id: str,
+    data: UserActiveUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("users:deactivate")),
+):
+    return UserService(db).toggle_user_active(user_id, current_user["user_id"])
 
 
 @router.get(
@@ -129,4 +138,4 @@ Kthen detajet e plotë të një përdoruesi sipas ID-së.
     },
 )
 def get_user(user_id: str, db: Session = Depends(get_db), _: dict = Depends(require_permission("users:read"))):
-    return users_service.get_user(db, user_id)
+    return UserService(db).get_user(user_id)

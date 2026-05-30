@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.dependencies.auth import require_permission
 from app.schemas.profile import ProfileResponse, ProfileUpdateRequest
-from app.services import profile as profile_service
+from app.services.profile import ProfileService
 
 router = APIRouter(prefix="/profile", tags=["Profile"])
 
@@ -29,7 +29,7 @@ def get_profile(
     current_user: dict = Depends(require_permission("profile:read")),
     db: Session = Depends(get_db),
 ):
-    return profile_service.get_my_profile(current_user, db)
+    return ProfileService(db).get_my_profile(current_user)
 
 
 @router.patch(
@@ -54,4 +54,4 @@ def update_profile(
     current_user: dict = Depends(require_permission("profile:update")),
     db: Session = Depends(get_db),
 ):
-    return profile_service.update_my_profile(data, current_user, db)
+    return ProfileService(db).update_my_profile(data, current_user)

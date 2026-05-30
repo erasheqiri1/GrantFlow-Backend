@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional
@@ -6,9 +7,13 @@ from typing import List, Optional
 from app.core.database import SessionLocal
 from app.dependencies.auth import get_tenant_db, require_permission
 from app.schemas.grants import GrantCreate, GrantUpdate, GrantResponse, PaginatedGrantResponse
-from app.services import grants as grant_service
+from app.services.grants import GrantService
 
 router = APIRouter(prefix="/grants", tags=["Grants"])
+
+
+class GrantStatusUpdate(BaseModel):
+    status: str
 
 
 def get_db_for_slug(tenant_slug: str):
@@ -46,7 +51,7 @@ def create_grant(
     user=Depends(require_permission("grants:create")),
     db: Session = Depends(get_tenant_db),
 ):
-    return grant_service.create_grant(data, user, db)
+    return GrantService(db).create_grant(data, user)
 
 
 @router.get(
@@ -88,8 +93,8 @@ def get_grants(
     if not slug:
         db = SessionLocal()
         try:
-            return grant_service.get_all_published_grants(
-                db, title, applicant_type, deadline_from, deadline_to,
+            return GrantService(db).get_all_published_grants(
+                title, applicant_type, deadline_from, deadline_to,
                 budget_min, budget_max, sortBy, sortDir, page, size,
             )
         finally:
@@ -99,8 +104,8 @@ def get_grants(
     try:
         schema_name = f"tenant_{slug.replace('-', '_')}"
         db.execute(text(f'SET search_path TO "{schema_name}", public'))
-        return grant_service.get_grants(
-            db, status, title, applicant_type, deadline_from, deadline_to,
+        return GrantService(db).get_grants(
+            status, title, applicant_type, deadline_from, deadline_to,
             budget_min, budget_max, sortBy, sortDir, page, size,
         )
     finally:
@@ -148,7 +153,7 @@ def get_grant(
             schema_name = find_schema_for_grant(gid, db)
 
         db.execute(text(f'SET search_path TO "{schema_name}", public'))
-        result = grant_service.get_grant_detail(grant_id, db)
+        result = GrantService(db).get_grant_detail(grant_id)
         # Shton tenant info nëse mungon slug
         if not slug:
             schema_slug = schema_name.replace("tenant_", "", 1)
@@ -183,7 +188,7 @@ def update_grant(
     user=Depends(require_permission("grants:update")),
     db: Session = Depends(get_tenant_db),
 ):
-    return grant_service.update_grant(grant_id, data, db)
+    return GrantService(db).update_grant(grant_id, data)
 
 
 @router.delete(
@@ -209,59 +214,42 @@ def delete_grant(
     user=Depends(require_permission("grants:delete")),
     db: Session = Depends(get_tenant_db),
 ):
-    grant_service.delete_grant(grant_id, db)
+    GrantService(db).delete_grant(grant_id)
 
 
 @router.patch(
-    "/{grant_id}/publish",
+    "/{grant_id}/status",
     response_model=GrantResponse,
-    summary="Publiko grant",
+    summary="Ndrysho statusin e grantit",
     description="""
-Ndryshon statusin e grantit nga **DRAFT** në **PUBLISHED**.
+Ndryshon statusin e grantit.
 
 **Kërkon rolin:** `ORG_ADMIN`
 
-Pas publikimit, granti bëhet i dukshëm për të gjithë aplikantët.
+Vlerat e lejuara për `status`:
+- `PUBLISHED` — publikon grantin (nga DRAFT)
+- `CLOSED` — mbyll grantin (nga PUBLISHED)
 """,
     responses={
-        200: {"description": "Grant i publikuar me sukses"},
+        200: {"description": "Statusi i ndryshuar me sukses"},
+        400: {"description": "Status i pavlefshëm"},
         401: {"description": "Token mungon ose i pavlefshëm"},
         403: {"description": "Nuk ke leje — kërkohet ORG_ADMIN"},
         404: {"description": "Granti nuk u gjet"},
     },
 )
-def publish_grant(
+def update_grant_status(
     grant_id: str,
+    data: GrantStatusUpdate,
     user=Depends(require_permission("grants:publish")),
     db: Session = Depends(get_tenant_db),
 ):
-    return grant_service.publish_grant(grant_id, user, db)
-
-
-@router.patch(
-    "/{grant_id}/close",
-    response_model=GrantResponse,
-    summary="Mbyll grant",
-    description="""
-Mbyll një grant të publikuar — nuk pranohen më aplikime.
-
-**Kërkon rolin:** `ORG_ADMIN`
-
-Pas mbylljes, nis procesi i vlerësimit të aplikimeve.
-""",
-    responses={
-        200: {"description": "Grant i mbyllur me sukses"},
-        401: {"description": "Token mungon ose i pavlefshëm"},
-        403: {"description": "Nuk ke leje — kërkohet ORG_ADMIN"},
-        404: {"description": "Granti nuk u gjet"},
-    },
-)
-def close_grant(
-    grant_id: str,
-    user=Depends(require_permission("grants:close")),
-    db: Session = Depends(get_tenant_db),
-):
-    return grant_service.close_grant(grant_id, user, db)
+    svc = GrantService(db)
+    if data.status == "PUBLISHED":
+        return svc.publish_grant(grant_id, user)
+    elif data.status == "CLOSED":
+        return svc.close_grant(grant_id, user)
+    raise HTTPException(status_code=400, detail="Status i pavlefshëm. Lejohet: PUBLISHED, CLOSED")
 
 
 # Finalizimi është automatik — thirret nga _check_auto_finalize në ai_scoring.py

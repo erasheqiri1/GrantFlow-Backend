@@ -60,7 +60,7 @@ def get_matrix(
     }
 
 
-@router.patch("/roles/{role_name}/toggle")
+@router.patch("/roles/{role_name}")
 def toggle_permission(
     role_name: str,
     data: ToggleRequest,

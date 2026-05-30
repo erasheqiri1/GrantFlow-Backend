@@ -25,7 +25,7 @@ from app.schemas.auth import (
     RefreshRequest,
     LogoutRequest,
 )
-from app.services import auth as auth_service
+from app.services.auth import AuthService
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -33,13 +33,13 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 @router.post("/register", response_model=MessageResponse, status_code=201)
 def register(data: RegisterRequest, db: Session = Depends(get_db)):
     """Regjistrim i aplikantit të ri — dërgon email verifikimi."""
-    return auth_service.register_user(data, db)
+    return AuthService(db).register_user(data)
 
 
 @router.post("/register-org", response_model=MessageResponse, status_code=202)
 def register_org(data: RegisterOrgRequest, db: Session = Depends(get_db)):
     """Regjistrim i organizatës së re + ORG_ADMIN. Pret aprovimin nga Super Admin."""
-    return auth_service.register_org(data, db)
+    return AuthService(db).register_org(data)
 
 
 @router.post("/login", response_model=TokenResponse, status_code=200)
@@ -48,7 +48,7 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
     client_ip = (request.client.host if request.client else "unknown")
     if not rate_limit_check(f"rl:login:{client_ip}", 10, 60):
         raise HTTPException(status_code=429, detail="Shumë tentativa. Provo pas 1 minutë.")
-    return auth_service.login_user(data, db)
+    return AuthService(db).login_user(data)
 
 
 @router.post("/logout", response_model=MessageResponse, status_code=200)
@@ -64,14 +64,14 @@ def logout(request: Request, data: LogoutRequest = LogoutRequest(), db: Session 
         except Exception:
             pass
     if data.refresh_token:
-        auth_service.revoke_refresh_token(data.refresh_token, db)
+        AuthService(db).revoke_refresh_token(data.refresh_token)
     return {"message": "Logout i suksesshëm"}
 
 
 @router.post("/refresh", response_model=TokenResponse, status_code=200)
 def refresh(data: RefreshRequest, db: Session = Depends(get_db)):
     """Merr access token të ri duke përdorur refresh token."""
-    return auth_service.refresh_access_token(data.refresh_token, db)
+    return AuthService(db).refresh_access_token(data.refresh_token)
 
 
 @router.post("/forgot-password", response_model=MessageResponse, status_code=202)
@@ -80,13 +80,13 @@ def forgot_password(request: Request, data: ForgotPasswordRequest, db: Session =
     client_ip = (request.client.host if request.client else "unknown")
     if not rate_limit_check(f"rl:forgot:{client_ip}", 5, 60):
         raise HTTPException(status_code=429, detail="Shumë tentativa. Provo pas 1 minutë.")
-    return auth_service.forgot_password(data, db)
+    return AuthService(db).forgot_password(data)
 
 
 @router.post("/reset-password", response_model=MessageResponse, status_code=200)
 def reset_password(data: ResetPasswordRequest, db: Session = Depends(get_db)):
     """Ndrysho fjalëkalimin me token."""
-    return auth_service.reset_password(data, db)
+    return AuthService(db).reset_password(data)
 
 
 @router.post("/register-org/upload-doc", status_code=200)
@@ -130,10 +130,10 @@ async def upload_org_doc(
 @router.get("/verify-email", response_model=MessageResponse, status_code=200)
 def verify_email(token: str, db: Session = Depends(get_db)):
     """Konfirmo emailin me token të dërguar gjatë regjistrimit."""
-    return auth_service.verify_email(token, db)
+    return AuthService(db).verify_email(token)
 
 
 @router.post("/invite/accept", response_model=TokenResponse, status_code=201)
 def accept_invite(data: InviteAcceptRequest, db: Session = Depends(get_db)):
     """Personi i ftuar pranon ftesën dhe krijon llogarinë."""
-    return auth_service.accept_invite(data, db)
+    return AuthService(db).accept_invite(data)

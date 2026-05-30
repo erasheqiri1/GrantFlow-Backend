@@ -7,7 +7,7 @@ from app.schemas.criteria import (
     CriteriaCreate, CriteriaUpdate, CriteriaResponse,
     QuestionCreate, QuestionUpdate, QuestionResponse,
 )
-from app.services import criteria as criteria_service
+from app.services.criteria import CriteriaService
 
 router = APIRouter(prefix="/grants", tags=["Criteria & Questions"])
 
@@ -23,7 +23,7 @@ def create_criteria(
     user=Depends(require_permission("grants:update")),
     db: Session = Depends(get_tenant_db),
 ):
-    return [criteria_service.create_criteria(grant_id, item, db) for item in data]
+    return [CriteriaService(db).create_criteria(grant_id, item) for item in data]
 
 
 @router.get("/{grant_id}/criteria", response_model=List[CriteriaResponse])
@@ -32,7 +32,7 @@ def get_criteria(
     user=Depends(require_permission("grants:read")),
     db: Session = Depends(get_tenant_db),
 ):
-    return criteria_service.get_criteria(grant_id, db)
+    return CriteriaService(db).get_criteria(grant_id)
 
 
 @router.patch("/{grant_id}/criteria/{criteria_id}", response_model=CriteriaResponse)
@@ -43,7 +43,7 @@ def update_criteria(
     user=Depends(require_permission("grants:update")),
     db: Session = Depends(get_tenant_db),
 ):
-    return criteria_service.update_criteria(grant_id, criteria_id, data, db)
+    return CriteriaService(db).update_criteria(grant_id, criteria_id, data)
 
 
 @router.delete("/{grant_id}/criteria/{criteria_id}", status_code=204)
@@ -53,7 +53,7 @@ def delete_criteria(
     user=Depends(require_permission("grants:update")),
     db: Session = Depends(get_tenant_db),
 ):
-    criteria_service.delete_criteria(grant_id, criteria_id, db)
+    CriteriaService(db).delete_criteria(grant_id, criteria_id)
 
 
 # ─────────────────────────────────────────
@@ -67,7 +67,7 @@ def create_question(
     user=Depends(require_permission("grants:update")),
     db: Session = Depends(get_tenant_db),
 ):
-    return [criteria_service.create_question(grant_id, item, db) for item in data]
+    return [CriteriaService(db).create_question(grant_id, item) for item in data]
 
 
 @router.get("/{grant_id}/questions", response_model=List[QuestionResponse])
@@ -76,7 +76,7 @@ def get_questions(
     user=Depends(require_permission("grants:read")),
     db: Session = Depends(get_tenant_db),
 ):
-    return criteria_service.get_questions(grant_id, db)
+    return CriteriaService(db).get_questions(grant_id)
 
 
 @router.patch("/{grant_id}/questions/{question_id}", response_model=QuestionResponse)
@@ -87,7 +87,7 @@ def update_question(
     user=Depends(require_permission("grants:update")),
     db: Session = Depends(get_tenant_db),
 ):
-    return criteria_service.update_question(grant_id, question_id, data, db)
+    return CriteriaService(db).update_question(grant_id, question_id, data)
 
 
 @router.delete("/{grant_id}/questions/{question_id}", status_code=204)
@@ -97,4 +97,4 @@ def delete_question(
     user=Depends(require_permission("grants:update")),
     db: Session = Depends(get_tenant_db),
 ):
-    criteria_service.delete_question(grant_id, question_id, db)
+    CriteriaService(db).delete_question(grant_id, question_id)

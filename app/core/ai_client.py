@@ -11,4 +11,4 @@ def get_ai_client():
             api_key=settings.GROQ_API_KEY,
             base_url="https://api.groq.com/openai/v1",
         ), "llama-3.1-8b-instant"
-    return None, None
+    return None, "heuristic-fallback"
