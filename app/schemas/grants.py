@@ -56,9 +56,9 @@ class QuestionInGrant(BaseModel):
 
 
 class CriteriaInGrant(BaseModel):
-    id:          str
+    id:          UUID
     name:        str
-    weight:      int
+    weight:      float
     is_required: bool
     model_config = {"from_attributes": True}
 

@@ -55,7 +55,7 @@ def list_users(
 
 @router.post(
     "/super-admin",
-    response_model=UserDetailResponse,
+    response_model=dict,
     summary="Krijo Super Admin të ri",
     description="""
 Krijon një llogari Super Admin të re direkt.
@@ -75,7 +75,7 @@ def create_super_admin(data: CreateSuperAdminRequest, db: Session = Depends(get_
 
 @router.post(
     "/invite-super-admin",
-    response_model=UserDetailResponse,
+    response_model=dict,
     summary="Fto Super Admin të ri",
     description="""
 Dërgon ftesë me email për Super Admin të ri.
@@ -99,7 +99,7 @@ class UserActiveUpdate(BaseModel):
 
 @router.patch(
     "/{user_id}",
-    response_model=UserDetailResponse,
+    response_model=dict,
     summary="Përditëso statusin e përdoruesit",
     description="""
 Aktivizon ose deaktivizon llogarinë e një përdoruesi.

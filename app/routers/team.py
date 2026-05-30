@@ -11,7 +11,7 @@ router = APIRouter(tags=["Team"])
 @router.post(
     "/invitations",
     status_code=202,
-    response_model=TeamMemberResponse,
+    response_model=dict,
     summary="Dërgo ftesë anëtari të ri",
     description="""
 Gjeneron një ftesë për COMMISSIONER ose ORG_ADMIN të ri.

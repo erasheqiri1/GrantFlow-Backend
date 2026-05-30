@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.dependencies.auth import require_permission
+from app.schemas.auth import MessageResponse
 from app.schemas.tenants import TenantListResponse, TenantResponse
 from app.services.tenants import TenantService
 
@@ -81,7 +82,7 @@ class TenantStatusUpdate(BaseModel):
 
 @router.patch(
     "/{tenant_id}/status",
-    response_model=TenantResponse,
+    response_model=MessageResponse,
     summary="Ndrysho statusin e organizatës",
     description="""
 Ndryshon statusin e një organizate.

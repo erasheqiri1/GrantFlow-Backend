@@ -8,7 +8,6 @@ from sqlalchemy import (
     Enum as SAEnum
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
 from app.core.database import Base
 
 
@@ -42,8 +41,8 @@ class Tenant(Base):
     email      = Column(String(200), nullable=False)
     nipt       = Column(String(50),  nullable=True)
     doc_path   = Column(String(500), nullable=True)
-    logo_path  = Column(String(500), nullable=True)
-    is_active  = Column(Boolean, default=False, nullable=False)
+    logo_path = Column(String(500), nullable=True)
+    is_active = Column(Boolean, default=False, nullable=False)
 
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(
@@ -52,9 +51,6 @@ class Tenant(Base):
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False
     )
-
-    # Relationships
-    user_roles = relationship("UserRole", back_populates="tenant", cascade="all, delete-orphan")
 
 
 class User(Base):
@@ -76,21 +72,13 @@ class User(Base):
         nullable=False
     )
 
-    # Relationships
-    profile            = relationship("UserProfile",    back_populates="user", uselist=False, cascade="all, delete-orphan")
-    applicant_profile  = relationship("ApplicantProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
-    user_roles         = relationship("UserRole",       back_populates="user",  cascade="all, delete-orphan")
-    refresh_tokens     = relationship("RefreshToken",   back_populates="user",  cascade="all, delete-orphan")
-    password_tokens    = relationship("PasswordResetToken",    back_populates="user", cascade="all, delete-orphan")
-    verification_tokens = relationship("EmailVerificationToken", back_populates="user", cascade="all, delete-orphan")
-
-
 class UserProfile(Base):
     __tablename__  = "user_profiles"
     __table_args__ = {"schema": "public"}
 
     id              = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id         = Column(UUID(as_uuid=True), ForeignKey("public.users.id", ondelete="CASCADE"), unique=True, nullable=False)
+    user_id         = Column(UUID(as_uuid=True), ForeignKey("public.users.id",
+                             ondelete="CASCADE"), unique=True, nullable=False)
     phone           = Column(String(50),  nullable=True)
     profile_picture = Column(String(500), nullable=True)
     address         = Column(String(300), nullable=True)
@@ -99,23 +87,21 @@ class UserProfile(Base):
     updated_at      = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
                              onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
-    # Relationships
-    user = relationship("User", back_populates="profile")
-
 
 class ApplicantProfile(Base):
     __tablename__  = "applicant_profiles"
     __table_args__ = {"schema": "public"}
 
     id                  = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id             = Column(UUID(as_uuid=True), ForeignKey("public.users.id", ondelete="CASCADE"), unique=True, nullable=False)
+    user_id             = Column(UUID(as_uuid=True), ForeignKey("public.users.id",
+                                 ondelete="CASCADE"), unique=True, nullable=False)
     personal_id         = Column(String(20),  nullable=True)
-    applicant_type      = Column(SAEnum(ApplicantType), nullable=True)
+    applicant_type     = Column(SAEnum(ApplicantType), nullable=True)
     has_prev_grant      = Column(Boolean, nullable=True)
     description         = Column(Text, nullable=True)
-    created_at          = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at          = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
-                                 onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
     # per student
     study_level         = Column(String(50),  nullable=True)
@@ -152,9 +138,6 @@ class ApplicantProfile(Base):
     interest_field      = Column(String(200), nullable=True)
     relevant_link       = Column(String(300), nullable=True)
 
-    # Relationships
-    user = relationship("User", back_populates="applicant_profile")
-
 
 class PasswordResetToken(Base):
     __tablename__  = "password_reset_tokens"
@@ -167,9 +150,6 @@ class PasswordResetToken(Base):
     is_used    = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
-    # Relationships
-    user = relationship("User", back_populates="password_tokens")
-
 
 class EmailVerificationToken(Base):
     __tablename__  = "email_verification_tokens"
@@ -181,21 +161,14 @@ class EmailVerificationToken(Base):
     expires_at = Column(DateTime(timezone=True), nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
-    # Relationships
-    user = relationship("User", back_populates="verification_tokens")
-
+# implementimi i RBAC
 
 class Role(Base):
     __tablename__  = "roles"
     __table_args__ = {"schema": "public"}
 
-    id   = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(SAEnum(RoleName), unique=True, nullable=False)
-
-    # Relationships
-    role_permissions = relationship("RolePermission", back_populates="role", cascade="all, delete-orphan")
-    user_roles       = relationship("UserRole",        back_populates="role", cascade="all, delete-orphan")
-
+    id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name        = Column(SAEnum(RoleName), unique=True, nullable=False)
 
 class Permission(Base):
     __tablename__  = "permissions"
@@ -206,9 +179,6 @@ class Permission(Base):
     resource = Column(String(50),  nullable=False)
     action   = Column(String(50),  nullable=False)
 
-    # Relationships
-    role_permissions = relationship("RolePermission", back_populates="permission", cascade="all, delete-orphan")
-
 
 class RolePermission(Base):
     __tablename__  = "role_permissions"
@@ -218,31 +188,21 @@ class RolePermission(Base):
     )
 
     id            = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    role_id       = Column(UUID(as_uuid=True), ForeignKey("public.roles.id",       ondelete="CASCADE"), nullable=False)
+    role_id       = Column(UUID(as_uuid=True), ForeignKey("public.roles.id", ondelete="CASCADE"), nullable=False)
     permission_id = Column(UUID(as_uuid=True), ForeignKey("public.permissions.id", ondelete="CASCADE"), nullable=False)
 
-    # Relationships
-    role       = relationship("Role",       back_populates="role_permissions")
-    permission = relationship("Permission", back_populates="role_permissions")
-
-
 class UserRole(Base):
-    __tablename__  = "user_roles"
-    __table_args__ = (
-        UniqueConstraint("user_id", "role_id", "tenant_id", name="uq_user_role_tenant"),
-        {"schema": "public"}
-    )
+        __tablename__ = "user_roles"
+        __table_args__ = (
+            UniqueConstraint("user_id", "role_id", "tenant_id", name="uq_user_role_tenant"),
+            {"schema": "public"}
+        )
 
-    id        = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id   = Column(UUID(as_uuid=True), ForeignKey("public.users.id",   ondelete="CASCADE"), nullable=False)
-    role_id   = Column(UUID(as_uuid=True), ForeignKey("public.roles.id",   ondelete="CASCADE"), nullable=False)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("public.tenants.id", ondelete="CASCADE"), nullable=True)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
-
-    # Relationships
-    user   = relationship("User",   back_populates="user_roles")
-    role   = relationship("Role",   back_populates="user_roles")
-    tenant = relationship("Tenant", back_populates="user_roles")
+        id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+        user_id = Column(UUID(as_uuid=True), ForeignKey("public.users.id", ondelete="CASCADE"), nullable=False)
+        role_id = Column(UUID(as_uuid=True), ForeignKey("public.roles.id", ondelete="CASCADE"), nullable=False)
+        tenant_id = Column(UUID(as_uuid=True), ForeignKey("public.tenants.id", ondelete="CASCADE"), nullable=True)
+        created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class RefreshToken(Base):
@@ -257,6 +217,3 @@ class RefreshToken(Base):
     expires_at  = Column(DateTime(timezone=True), nullable=False)
     is_revoked  = Column(Boolean, default=False, nullable=False)
     created_at  = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
-
-    # Relationships
-    user = relationship("User", back_populates="refresh_tokens")
